@@ -1,0 +1,33 @@
+% Dokaze, ali uz NDG
+% NDG uslov: -2*x48^2 + x48^2*x58 (ili x48^4 -- ovo bi valjda bilo da rastojanje M C S nije 0)
+% Vreme dokazivanja: 1640.97ms
+
+A B C S = make_tetrahedron
+
+pi = make_plane A B C
+H = make_foot_on_plane S pi
+
+M = make_midpoint S A
+
+n1 = distance M A C
+n2 = distance M A B
+n3 = distance M B C
+n4 = distance M B S
+n5 = distance M C S
+
+equal_numbers n1 n2
+equal_numbers n2 n3
+equal_numbers n3 n4
+equal_numbers n4 n5
+
+distBA = square_distance B A
+distBH = square_distance B H
+distCA = square_distance C A
+distCH = square_distance C H
+
+sum1 = distBA + distBH
+sum2 = distCA + distCH
+
+prove {
+    equal_numbers sum1 sum2
+}

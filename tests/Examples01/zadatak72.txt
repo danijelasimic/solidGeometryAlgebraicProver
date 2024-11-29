@@ -1,0 +1,18 @@
+% radi, bez NDG
+% Vreme dokazivanja: 750.263ms
+
+A B C D = make_regular_tetrahedron
+
+alpha = make_plane A B C
+
+l = make_line_orthogonal_on_plane D alpha
+
+D1 = make_line_plane_intersection l alpha
+
+E = make_midpoint D D1
+
+prove {
+    orthogonal_lines A E E B
+    orthogonal_lines B E E C
+    orthogonal_lines C E E A
+}

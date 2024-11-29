@@ -1,0 +1,26 @@
+% radi, bez NDG
+% Vreme dokazivanja: 720.896ms
+
+A B C D E F G H = make_cube
+
+M = make_line_intersection E G H F
+N = make_line_intersection A C B D
+
+O = make_line_intersection E N A M
+P = make_line_intersection F N B M
+Q = make_line_intersection H N D M
+R = make_line_intersection G N C M
+
+pi = make_plane O P Q
+
+prove {
+    point_in_plane R pi
+}
+
+l = make_line_orthogonal_on_plane M pi
+
+T = make_line_plane_intersection l pi
+
+prove {
+    segments_in_ratio M T A B 1 2
+}

@@ -1,0 +1,29 @@
+% ne uspeva da dokaze
+
+A B C D = make_tetrahedron
+
+% h1 = make_line_orthogonal_on_plane D A B C
+% D1 = make_line_plane_intersection h1 A B C
+
+% h2 = make_line_orthogonal_on_plane B A C D
+% B1 = make_line_plane_intersection h2 A C D
+
+% h3 = make_line_orthogonal_on_plane A B C D
+% A1 = make_line_plane_intersection h3 B C D
+
+% h4 = make_line_orthogonal_on_plane C A B D
+% C1 = make_line_plane_intersection h4 A B D
+
+pi1 = make_plane A B C
+D1 = make_foot_on_plane D pi1
+
+pi2 = make_plane B C D
+A1 = make_foot_on_plane A pi2
+
+orthogonal_lines A B D C
+orthogonal_lines A C B D
+orthogonal_lines A D C B
+
+prove {
+    congruent D D1 A A1
+}

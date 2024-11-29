@@ -1,0 +1,13 @@
+% na laptopu nemam wolfram nije testirano
+
+A B C D = make_tetrahedron
+
+M = make_midpoint A B
+N = make_midpoint C D
+
+congruent A N D M
+congruent C M B N
+
+prove {
+    congruent A C B D
+}

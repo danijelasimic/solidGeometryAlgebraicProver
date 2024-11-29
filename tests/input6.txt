@@ -1,0 +1,20 @@
+% bez NDG
+% Vreme dokazivanja: 788.187ms
+
+A = make_point
+B = make_point
+
+l1 = make_line A B
+
+C = make_point_on_line l1
+D = make_point
+
+l2 = make_line C D
+
+M = make_line_intersection l1 l2
+
+prove {
+    line_intersection M l1 l2
+}    
+
+

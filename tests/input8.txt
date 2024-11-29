@@ -1,0 +1,13 @@
+n = 56
+
+A = make_point
+B = make_point
+C = make_point
+D = make_point
+
+L1 = make_line A B
+L2 = make_line C D
+
+prove {
+    orthogonal_lines L1 L2
+}

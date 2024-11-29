@@ -1,0 +1,23 @@
+% radi, bez NDG
+% Vreme dokazivanja: 784.114ms
+
+A B C S = make_tetrahedron
+
+alpha1 = make_plane A B C
+alpha2 = make_plane B C S
+alpha3 = make_plane A C S
+alpha4 = make_plane A B S
+
+h1 = make_line_orthogonal_on_plane S alpha1
+h2 = make_line_orthogonal_on_plane A alpha2
+h3 = make_line_orthogonal_on_plane B alpha3
+h4 = make_line_orthogonal_on_plane C alpha4
+
+H1 = make_line_intersection h1 h2
+H2 = make_line_intersection h2 h3
+H3 = make_line_intersection h2 h4
+
+prove {
+    equal_points H1 H2
+    equal_points H1 H3
+}

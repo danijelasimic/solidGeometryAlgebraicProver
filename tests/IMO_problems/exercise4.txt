@@ -1,0 +1,24 @@
+% IMO ILL 1966 p17 
+% Ne moze da dokaze bez NDG
+% Potreban NDG za oba tvrdjenja je: x25+x26
+% Vreme dokazivanja: 922.735ms
+
+% Btw, ne moze da dokaze dok nisam napravila make_parallelogram
+
+% Btw, ne moze da dokaze parallel_lines M P N Q (ovo je netacno)
+
+A B C D = make_parallelogram
+A1 B1 C1 D1 = make_parallelogram
+
+n = make_number
+m = make_number
+
+M = make_point_ratio A A1 n m
+N = make_point_ratio B B1 n m
+P = make_point_ratio C C1 n m
+Q = make_point_ratio D D1 n m
+
+prove {
+    parallel_lines M N P Q
+    parallel_lines M Q N P
+}

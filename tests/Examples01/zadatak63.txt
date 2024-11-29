@@ -1,0 +1,18 @@
+% radi, bez NDG
+% Vreme dokazivanja: 746.759ms
+
+A = make_point
+B = make_point
+C = make_point
+D = make_point
+
+orthogonal_lines A B B C
+orthogonal_lines B C C D
+orthogonal_lines C D D A
+orthogonal_lines D A A B
+
+alpha = make_plane A B C
+
+prove {
+    point_in_plane D alpha
+}

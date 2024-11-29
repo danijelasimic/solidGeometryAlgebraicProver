@@ -1,0 +1,15 @@
+A = make_point
+B = make_point
+C = make_point
+D = make_point
+E = make_point
+F = make_point
+G = make_point
+H = make_point
+
+M = make_midpoint G H
+S = make_point_ratio G H 1 1
+
+prove {
+    equal_points M S
+}

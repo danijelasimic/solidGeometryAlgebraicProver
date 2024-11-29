@@ -1,0 +1,21 @@
+% Uspesno, bez NDG
+% Vreme dokazivanja: 834.422ms
+
+F G H E A B C D = make_cube 2
+
+P = make_midpoint A B
+Q = make_midpoint H E
+M = make_midpoint B C
+N = make_midpoint E F
+
+X = make_line_intersection A M C P
+Y = make_line_intersection H N F Q
+
+n1 = square_distance X Y
+n2 = 9 * n1
+n = 44
+
+prove {
+    equal_numbers n2 n
+}
+

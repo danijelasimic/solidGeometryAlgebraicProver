@@ -1,0 +1,12 @@
+-- some are obvious
+-- line_intersections:
+    - lines are well-defined
+    - lines are not parallel 
+    - lines are not skew
+
+-- MAKE_LINE_PLANE_INTERSECTION name_token name_token
+    -- line and plane are well-defined
+    -- line is not parallel to the plane
+
+-- MAKE_PLANE name_token name_token name_token
+    -- all points must be distinct

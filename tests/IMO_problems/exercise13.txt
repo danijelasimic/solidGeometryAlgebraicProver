@@ -1,0 +1,22 @@
+% Dokazao, ali mu treba NDG uslov: x21
+% Mislim da je uslov vezan za ravan pi, i to je onaj slobodan clan ravni, da ne bude jedan 0
+% Vreme dokazivanja: 756.626ms
+
+A = make_point
+B = make_point
+C = make_point
+D = make_point
+E = make_point
+F = make_point
+
+parallel_lines A B D E
+parallel_lines B C E F
+parallel_lines C D F A
+
+pi = make_plane A B C
+
+prove {
+    point_in_plane D pi
+    point_in_plane E pi
+    point_in_plane F pi
+}

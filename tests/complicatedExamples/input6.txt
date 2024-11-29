@@ -1,0 +1,33 @@
+% Potreban NDG: x26
+% Pogledaj input fajl u ovom folderu: input6.wls
+% TODO: Potrebno utvrditi za sta je vezan
+% Vreme dokazivanja: 737.247ms
+% Interesantno: Kada se pokrene bez NDG napravi dve ogromne Grebnerove baze
+%               i izbaci Vreme dokazivanja: 1408.95ms
+% Ovde je interesantno i razmisliti kako odabrati najbolji polinom za NDG?
+% Ja sam uzela najmanji moguci, ali mozda on nije ono sto nam treba...?
+% Komplikovano.
+
+A B C D A1 B1 C1 D1 = make_cube
+
+M = make_midpoint A B
+N = make_midpoint A D
+P = make_midpoint B C
+K = make_midpoint D C
+
+l1 = make_line M N
+l2 = make_line P K
+pi = make_plane A B C
+
+alpha = make_plane_orthogonal_on_plane pi l1
+beta = make_plane_orthogonal_on_plane pi l2
+
+% make_line_trough_points g A1 C1
+
+V = make_line_plane_intersection A1 C1 alpha
+W = make_line_plane_intersection A1 C1 beta
+
+prove {
+    segments_in_ratio V W M P 1 1
+    segments_in_ratio A1 V W C1 1 1
+}

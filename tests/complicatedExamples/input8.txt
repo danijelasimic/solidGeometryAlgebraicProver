@@ -1,0 +1,13 @@
+% radi, bez NDG
+% Vreme dokazivanja: 769.099ms
+
+A B C D E F G H = make_cube
+
+M = make_midpoint A B
+
+pi = make_plane A M H
+
+prove {
+    point_in_plane B pi
+    point_in_plane G pi
+}

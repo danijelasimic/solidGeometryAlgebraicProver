@@ -1,0 +1,25 @@
+% ne moze da dokaze
+
+A B C D = make_tetrahedron
+
+E1 = make_point_on_line A B
+E2 = make_point_on_line B C
+E3 = make_point_on_line C D
+E4 = make_point_on_line D A
+
+P = make_point
+
+congruent P E1 P E2
+congruent P E2 P E3
+congruent P E3 P E4
+
+orthogonal_lines P E1 A B
+orthogonal_lines P E2 B C
+orthogonal_lines P E3 C D
+orthogonal_lines P E4 D A
+
+alpha = make_plane E1 E2 E3
+
+prove {
+    point_in_plane E4 alpha
+}

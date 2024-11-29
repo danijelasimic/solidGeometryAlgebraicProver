@@ -1,0 +1,14 @@
+A = make_point
+B = make_point
+C = make_point
+D = make_point
+E = make_point
+F = make_point
+G = make_point
+H = make_point
+
+S = make_point_ratio G H 1 4
+
+prove {
+    segments_in_ratio S G S H 1 4
+}

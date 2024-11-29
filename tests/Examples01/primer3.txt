@@ -1,0 +1,17 @@
+% radi, bez NDG
+% Vreme dokazivanja: 762.669ms
+% Interesantno: vreme dokazivanja je krace u prvoj varijanti gde nemam pomocne promenljive: Vreme dokazivanja: 734.05ms
+
+A B C D A1 B1 C1 D1 = make_cube
+
+M = make_line_intersection A C B D
+N = make_line_intersection A1 C1 B1 D1
+
+S = make_point_ratio N M -1 2
+
+L = make_line_plane_intersection S A A1 B1 C1
+G = make_line_plane_intersection S B A1 B1 C1
+
+prove {
+    segments_in_ratio L G A B 1 2
+}

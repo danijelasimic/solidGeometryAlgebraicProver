@@ -1,0 +1,27 @@
+% Dokazano bez NDG
+% Vreme dokazivanja: 1511.81ms
+
+M = make_midpoint A C
+N = make_midpoint B D
+
+n1 = square_distance A B
+n2 = square_distance B C
+n3 = square_distance C D
+n4 = square_distance D A
+
+m1 = square_distance A C
+m2 = square_distance B D
+m3 = square_distance M N
+
+m4 = 4 * m3
+
+sum1 = n1 + n2
+sum2 = sum1 + n3
+sum3 = sum2 + n4
+
+sum4 = m1 + m2
+sum5 = sum4 + m4
+
+prove {
+    equal_numbers sum3 sum5
+}

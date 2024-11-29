@@ -1,0 +1,14 @@
+A = make_point  
+
+
+B = make_point
+C = make_point
+
+l1 = make_line A B
+l2 = make_line B C
+
+prove {
+    point_on_line C l2 
+}
+
+

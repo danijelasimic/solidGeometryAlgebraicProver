@@ -1,0 +1,14 @@
+% radi, bez NDG
+% Vreme dokazivanja: 765.635ms
+
+A B C D E F G H = make_cube
+
+M = make_line_intersection E G H F
+N = make_line_intersection A C B D
+
+O = make_line_intersection E N A M
+P = make_line_intersection F N B M
+
+prove {
+    segments_in_ratio O P A B 1 2
+}

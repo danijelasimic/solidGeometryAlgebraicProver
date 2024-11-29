@@ -1,0 +1,16 @@
+A = make_point
+B = make_point
+
+C = make_point
+D = make_point
+
+
+M = make_line_intersection A B C D
+
+prove {
+    line_intersection M A B C D
+}    
+
+
+
+

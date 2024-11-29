@@ -1,0 +1,26 @@
+A = make_point
+B = make_point
+C = make_point
+D = make_point
+F = make_point
+G = make_point
+
+pi = make_plane A B C
+
+l = make_line A B
+
+prove {
+    line_in_plane l pi
+}    
+
+% OVO NE VAZI KAD SAM POPRAVILA BAGOVE :)
+% Interesantan primer. Ne moze da dokaze jer mu fali NDG uslov
+% Ako su tacke A i B jednake, onda i ravan i prava nisu jedinstveno odredjeni
+% Samim tim se postavlja pitanje da li ravan ce zaista da pripada pravi
+% Kada se pogleda Grebnerova baza i doda ndg uslov, on upspesno dokazuje tvrdjenje!
+% Ovde sam rucno menjala wls fajl. Rucno izmenjeni wls fajl je sacuvan pod imenom
+% primer_10_problem_sa_ndg.wls
+
+% Inace, interesatno je sto NDG uslov je prakticno da x22 bude razlicito od 0
+% A x22 je slobodni clan u jednacini ravni (x19*x1 + x20*x2 + x21*x3 + x22)
+ 

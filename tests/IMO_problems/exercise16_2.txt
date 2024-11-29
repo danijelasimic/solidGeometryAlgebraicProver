@@ -1,0 +1,17 @@
+P = make_point
+pi = make_plane 
+
+A = make_point_in_plane pi
+B = make_point_in_plane pi
+C = make_point_in_plane pi
+
+collinear A B C
+
+Q = make_foot_on_plane P pi 
+
+angle P A Q = angle P C Q
+
+prove {
+    angle Q A B = angle Q C B
+}
+

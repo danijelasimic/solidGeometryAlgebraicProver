@@ -1,0 +1,22 @@
+% radi bez NDG 
+% Vreme dokazivanja: 768.56ms
+
+A B C D S = make_pyramid 4
+
+A1 = make_midpoint A S
+B1 = make_midpoint B S
+C1 = make_midpoint C S
+D1 = make_midpoint D S
+
+alpha = make_plane A1 B1 C1
+l = make_line_orthogonal_on_plane S alpha
+M = make_line_plane_intersection l alpha
+
+beta = make_plane A B C
+g = make_line_orthogonal_on_plane S beta
+N = make_line_plane_intersection g beta
+
+prove {
+    segments_in_ratio S M S N 1 2
+    parallel_planes alpha beta
+}

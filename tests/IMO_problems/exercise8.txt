@@ -1,0 +1,22 @@
+% bez NDG, lako dokaze
+% Vreme dokazivanja: 773.698ms
+
+A B C D = make_tetrahedron
+
+orthogonal_lines A B D C
+orthogonal_lines A C B D
+orthogonal_lines A D C B
+
+M1 = make_midpoint A B
+M2 = make_midpoint B C
+M3 = make_midpoint A C
+M4 = make_midpoint D C
+M5 = make_midpoint A D
+M6 = make_midpoint D B
+
+s = make_sphere M1 M2 M3 M4
+
+prove {
+    point_on_sphere M5 s
+    point_on_sphere M6 s
+}

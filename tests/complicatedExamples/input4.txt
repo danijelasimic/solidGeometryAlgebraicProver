@@ -1,0 +1,20 @@
+% Potreban NDG: -1 + 2*x46
+% Pogledaj input fajl u ovom folderu: input4.wls
+% TODO: Potrebno utvrditi za sta je vezan
+% Vreme dokazivanja: 733.644ms
+
+A B C D A1 B1 C1 D1 = make_cube
+
+M = make_midpoint A B
+N = make_midpoint A D
+
+l = make_line M N
+pi = make_plane A B C
+
+alpha = make_plane_orthogonal_on_plane pi l
+
+F = make_line_plane_intersection A1 C1 alpha
+
+prove {
+    segments_in_ratio A1 F M N 1 2
+}

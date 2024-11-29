@@ -1,0 +1,35 @@
+P = make_point 
+P1 = make_point
+
+Q = make_point
+Q1 = make_point
+
+p = make_line P P1
+q = make_line Q Q1
+
+pq = make_line P Q
+pq1 = make_line P1 Q1
+
+C = make_point
+C1 = make_point
+
+c = make_line C C1
+
+orthogonal_lines pq c
+orthogonal_lines pq1 c
+
+pi = make_plane_orthogonal_on_line P q
+pi1 = make_plane_orthogonal_on_line P1 q
+
+ro = make_plane_orthogonal_on_line Q p
+ro1 = make_plane_orthogonal_on_line Q1 p
+
+R = make_line_plane_intersection c pi
+R1 = make_line_plane_intersection c pi1
+
+S = make_line_plane_intersection c ro
+S1 = make_line_plane_intersection c ro1
+
+prove {
+    congruent R S R1 S1 
+}

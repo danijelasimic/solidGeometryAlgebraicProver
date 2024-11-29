@@ -1,0 +1,19 @@
+A = make_point
+B = make_point
+C = make_point
+D = make_point
+F = make_point
+G = make_point
+
+pi = make_plane D F G
+l = make_line F G
+
+prove {
+    line_in_plane A B pi
+
+    line_in_plane F G D F G
+
+    line_in_plane l D F G
+}
+
+% VAZAN PRIMER, VIDETI STA JE SA ndg

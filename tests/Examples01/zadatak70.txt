@@ -1,0 +1,20 @@
+% radi, bez NDG
+% Vreme dokazivanja: 755.757ms
+
+A = make_point
+B = make_point
+C = make_point
+D = make_point
+
+congruent A B C D
+congruent A D B C
+
+M = make_midpoint A C
+N = make_midpoint B D
+
+l = make_line M N
+d = make_line A C
+
+prove {
+    orthogonal_lines l d
+}

@@ -1,0 +1,35 @@
+% Ovo ne moze da dokaze, kao da tvrdjenje nije tacno
+
+A B C D = make_tetrahedron
+
+dAD = distance A D
+dCD = distance C D
+dBC = distance B C
+dAB = distance A B
+dCA = distance C A
+dBD = distance B D
+
+n1 = dAD + dBD
+n2 = dCA + dBC
+n3 = dBD + dCD
+n4 = dAB + dCA
+n5 = dCD + dAD
+n6 = dBC + dAB
+
+equal_numbers n1 n2
+equal_numbers n3 n4
+equal_numbers n5 n6
+
+M = make_midpoint B C
+N = make_midpoint C A
+P = make_midpoint A B
+
+O = make_point
+
+congruent O A O B
+congruent O B O C
+congruent O C O D
+
+prove {
+    angle M O P = angle N O P
+}

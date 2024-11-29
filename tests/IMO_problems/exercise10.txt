@@ -1,0 +1,33 @@
+% Ovo nesto glupo, ne znam sto nece da dokaze (ne izbacuje {1})
+% Verovatno neka glupa greska, mrzi me sad da debagujem
+
+A B C D = make_regular_tetrahedron
+
+h1 = make_line_orthogonal_on_plane D A B C
+
+h2 = make_line_orthogonal_on_plane B A C D
+
+P = make_line_intersection h1 h2
+
+n1 = distance P A B
+n2 = distance P A C
+n3 = distance P A D
+n4 = distance P B C
+n5 = distance P B D
+n6 = distance P C D
+
+sum1 = n1 + n2
+sum2 = sum1 + n3
+sum3 = sum2 + n4
+sum4 = sum3 + n5
+sum5 = sum4 + n6
+
+num7 = 9
+
+num8 = 2 * sum5
+num9 = num8 * sum5
+
+prove {
+    equal_numbers num9 num7
+}
+

@@ -1,0 +1,27 @@
+% NE RADI (3 sata se izvrsavao, pa nasilno prekinut)
+% Varijanta2 za distance:
+% Vreme dokazivanja: 168685ms (nije dokazao, trazim NDG)
+% Na izlazu GroebnerBasis velicine 85 polinoma (ulaz je 46 polinoma, ali su prilicno jednostavni)
+% Nadjen NDG: x31^4*x32^2*x44^2 - x31^2*x32^4*x44^2 + 2*x31^4*x32^2*x53^2 - 2*x31^2*x32^4*x53^2 - 2*x31^4*x32*x44^3*x55 - 2*x31^3*x32^2*x44^3*x55 + 2*x31^2*x32^3*x44^3*x55 + 2*x31*x32^4*x44^3*x55 - 4*x31^4*x32*x44*x53^2*x55 - 4*x31^3*x32^2*x44*x53^2*x55 + 4*x31^2*x32^3*x44*x53^2*x55 + 4*x31*x32^4*x44*x53^2*x55
+% 
+% Za ovaj zadatak imam dva komentara:
+% 1. NDG je komplikovan: Vreme dokazivanja sa NDG: 2682.62ms 
+
+% 2. Nije hteo da dokaze kad sam koristila onaj A.distance(B) vec onaj distance2(A, B) koji uvodi nove promenljve
+
+% congruent B C A D -- ovo nisam probala da dokazem, ali je vrv slican mehanizam
+
+% Ovo je problem iz onog rada: Example 2 (33rd American Michael Putnam Mathematical Competition 1972)
+
+A = make_point
+B = make_point
+C = make_point
+D = make_point
+
+equal_angles B A D B C D
+equal_angles A B C A D C
+
+prove {
+    congruent B A C D
+}
+

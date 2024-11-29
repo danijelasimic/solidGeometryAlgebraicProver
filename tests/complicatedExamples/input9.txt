@@ -1,0 +1,11 @@
+% radi, bez NDG
+% Vreme dokazivanja: 708.085ms
+
+A B C D A1 B1 C1 D1 = make_cube
+
+alpha = make_plane A D C1
+beta = make_plane B C D1
+
+prove{
+    orthogonal_planes alpha beta
+}

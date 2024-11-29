@@ -1,0 +1,31 @@
+% Ne moze bez NDG
+% NDG uslov: x34
+% Vreme dokazivanja: 850.005ms
+
+A B C D = make_tetrahedron
+
+h1 = make_line_orthogonal_on_plane D A B C
+
+h2 = make_line_orthogonal_on_plane B A C D
+
+h3 = make_line_orthogonal_on_plane A B C D
+
+h4 = make_line_orthogonal_on_plane C A B D
+
+O1 = make_line_intersection h1 h2
+O2 = make_line_intersection h3 h4
+
+equal_points O1 O2
+
+dAB = square_distance A B
+dCD = square_distance C D
+dBC = square_distance B C
+dAD = square_distance A D
+
+n = dAB + dCD
+m = dBC + dAD
+
+prove {
+    equal_numbers n m
+}
+

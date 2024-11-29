@@ -1,0 +1,33 @@
+% 16.1 from DIM
+
+A = make_point
+B = make_point
+C = make_point
+D = make_point
+E = make_point
+F = make_point
+
+
+congruent A B C D
+congruent A B E F
+congruent C D E F
+
+pi = make_plane
+
+Aproj = make_point_projection A pi
+Bproj = make_point_projection B pi
+Cproj = make_point_projection C pi
+Dproj = make_point_projection D pi
+Eproj = make_point_projection E pi
+Fproj = make_point_projection F pi
+
+
+prove {
+    congruent Aproj Bproj Cproj Dproj
+    congruent Aproj Bproj Eproj Fproj    
+}
+
+
+
+
+

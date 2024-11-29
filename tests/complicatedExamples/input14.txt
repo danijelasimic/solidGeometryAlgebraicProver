@@ -1,0 +1,19 @@
+% Potreban NDG: x17
+% Pogledaj input fajl u ovom folderu: input14.wls
+% TODO: Potrebno utvrditi za sta je vezan
+% Vreme dokazivanja: 743.013ms
+
+A B C D S = make_pyramid 4
+
+M = make_midpoint A B
+M1 = make_midpoint S B
+
+T1 = make_line_intersection S M A M1
+
+N = make_midpoint B C
+
+T2 = make_line_intersection S N C M1
+
+prove {
+    segments_in_ratio T1 T2 A B 1 2 
+}

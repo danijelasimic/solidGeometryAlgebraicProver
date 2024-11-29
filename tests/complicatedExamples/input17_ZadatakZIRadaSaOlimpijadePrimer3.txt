@@ -1,0 +1,23 @@
+% Radi (i to neocekivano sa moje strane) bez NDG
+% Vreme dokazivanja: 871.306ms
+
+A B C D = make_tetrahedron
+
+K = make_midpoint A B
+L = make_midpoint B C
+M = make_midpoint C A
+
+congruent A B C D
+congruent A C B D
+congruent A D B C
+
+O = make_point
+
+congruent A O B O
+congruent B O C O
+congruent C O D O
+
+prove {
+    angle K O L = angle L O M
+    angle L O M = angle M O K
+}

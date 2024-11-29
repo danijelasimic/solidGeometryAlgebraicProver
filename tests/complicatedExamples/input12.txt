@@ -1,0 +1,15 @@
+% radi bez NDG
+% Vreme dokazivanja: 714.939ms
+
+A B C D S = make_pyramid 4
+
+A1 = make_midpoint A S
+B1 = make_midpoint B S
+C1 = make_midpoint C S
+D1 = make_midpoint D S
+
+alpha = make_plane A1 B1 C1
+
+prove {
+    point_in_plane D1 alpha
+}

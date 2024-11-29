@@ -1,0 +1,31 @@
+% radi, bez NDG
+% Vreme dokazivanja: 1619.15ms
+
+A B C D = make_tetrahedron
+
+congruent D A D B
+congruent D B D C
+
+congruent A B B C
+congruent B C C A
+
+M = make_midpoint A B
+N = make_midpoint C D
+
+P = make_point_on_line A D
+Q = make_point_on_line B C
+
+alpha = make_plane M N P
+point_in_plane Q alpha
+
+n1 = square_distance A P
+n2 = square_distance A D
+n3 = square_distance B Q
+n4 = square_distance B C
+
+n5 = n1 / n2
+n6 = n3 / n4
+
+prove {
+    equal_numbers n5 n6
+}

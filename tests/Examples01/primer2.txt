@@ -1,0 +1,18 @@
+% radi, bez NDG
+% Vreme dokazivanja: 762.669ms
+
+A B C D = make_tetrahedron
+
+l1 = make_line_orthogonal_on_plane D A B C
+l2 = make_line_orthogonal_on_plane B A C D
+
+O = make_line_intersection l1 l2
+
+K = make_midpoint A B
+L = make_midpoint B C
+M = make_midpoint C A
+
+prove {
+    angle K O L = angle L O M
+}
+% isto: equal_angles K O L L O M

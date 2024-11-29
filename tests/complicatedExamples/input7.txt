@@ -1,0 +1,12 @@
+% radi, bez NDG
+% Vreme dokazivanja: 735.567ms
+
+A B C D A1 B1 C1 D1 = make_cube
+
+S = make_midpoint B B1
+
+T = make_midpoint B1 C1
+
+prove {
+    point_in_plane T A D1 S
+}

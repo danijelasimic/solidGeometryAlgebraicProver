@@ -1,0 +1,18 @@
+A = make_point  
+
+% da li rade komentari
+
+B = make_point
+C = make_point
+
+M = make_midpoint B C
+
+prove {
+    % midpoint M C B
+
+    % congruent M C M B
+
+    % segments_in_ratio M C M B 1 1
+
+    point_segment_ratio M C B 20 20
+}

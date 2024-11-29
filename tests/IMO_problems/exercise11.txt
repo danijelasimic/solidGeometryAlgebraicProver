@@ -1,0 +1,54 @@
+% ne moze da dokaze
+
+A B C D = make_tetrahedron
+
+% E = make_point_on_line A B
+% F = make_point_on_line B C
+% G = make_point_on_line C A
+% H = make_point_on_line D A
+% K = make_point_on_line D B
+% L = make_point_on_line D C
+
+% distAE = distance A E
+% distBE = distance B E
+% distBF = distance B F
+% distCF = distance C F
+% distCG = distance C G
+% distAG = distance A G
+% distDH = distance D H
+% distAH = distance A H
+% distDK = distance D K
+% distBK = distance B K
+% distDL = distance D L
+% distCL = distance C L
+% 
+% num1 = distAE * distBE
+% num2 = distBF * distCF
+% num3 = distCG * distAG
+% num4 = distDH * distAH
+% num5 = distDK * distBK
+% num6 = distDL * distCL
+% 
+% equal_numbers num1 num2
+% equal_numbers num2 num3
+% equal_numbers num3 num4 
+% equal_numbers num4 num5
+% equal_numbers num5 num6
+% 1986 BMO Problem 2 (BUL) 
+
+m = make_number
+n = make_number
+
+E = make_point_ratio A B m n
+F = make_point_ratio B C m n
+G = make_point_ratio C A m n
+H = make_point_ratio D A m n
+K = make_point_ratio D B m n
+L = make_point_ratio D C m n
+
+s = make_sphere E F G H
+
+prove {
+    point_on_sphere K s
+}
+

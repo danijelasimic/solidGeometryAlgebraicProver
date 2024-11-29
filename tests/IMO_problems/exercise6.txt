@@ -1,0 +1,40 @@
+% ocekivano ne moze da dokaze
+
+A B C D = make_tetrahedron
+
+S = make_point
+
+E = make_point_on_line A B
+F = make_point_on_line B C
+G = make_point_on_line C D
+H = make_point_on_line D A
+
+orthogonal_lines S E A B
+orthogonal_lines S F B C
+orthogonal_lines S G C D
+orthogonal_lines S H D A
+
+congruent S E S F
+congruent S F S G
+congruent S G S H
+
+orthogonal_lines E F F G
+orthogonal_lines F G G H
+orthogonal_lines G H H E
+orthogonal_lines H E E F
+
+congruent E F F G
+congruent F G G H
+congruent G H H E
+
+M = make_point_on_line A C
+N = make_point_on_line B D
+
+orthogonal_lines S M A C
+congruent S M S E
+
+prove {
+    orthogonal_lines S N B D
+    congruent S N S E
+}
+

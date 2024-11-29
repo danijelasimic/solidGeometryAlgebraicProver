@@ -1,0 +1,1714 @@
+%{
+#include <cstdlib>
+#include <string>
+#include <iostream>
+#include <string>
+#include <map>
+#include <unordered_map>
+#include <memory> 
+#include <initializer_list>
+
+#include "../src/geom3d_object.h"
+#include "../src/point.h"  
+#include "../src/polinom.h"
+#include "../src/line.h"
+#include "../src/main.h"  
+#include "../src/statement.h"
+#include "../src/solids.h" 
+#include "../src/sphere.h"
+#include "../src/number.h"
+#include "../src/plane.h"
+#include "../src/ndgConditions.h"
+
+// debug 
+#define YYDEBUG 1
+
+extern FILE *yyin;
+
+// handling error, for now
+// TODO: improve  
+void yyerror(std::string s) {
+  extern int yylineno;
+
+  std::cerr << s << std::endl;
+  std::cerr << "syntax error in line " << yylineno << std::endl;
+  exit(EXIT_FAILURE);
+}
+
+// leksicki analizator
+ extern int yylex();
+
+// Table: (name, object)
+// All created points
+using MapPoints = std::unordered_map<std::string, Point*>;
+MapPoints table_points;
+
+// Table: (name, object)
+// All created lines
+using MapLines = std::unordered_map<std::string, Line*>;
+MapLines table_lines;
+
+// Table: (name, object)
+// All created numbers (for distance and measurements)
+using MapNumbers = std::unordered_map<std::string, Number*>;
+MapNumbers table_numbers;
+
+// Table: (name, object)
+using MapSpheres = std::unordered_map<std::string, Sphere*>;
+MapSpheres table_spheres;
+
+// Table: (name, object)
+// All created planes
+using MapPlanes = std::unordered_map<std::string, Plane*>;
+MapPlanes table_planes;
+
+/* Important!
+   Two sets: construction polinoms and statement polinoms.
+   Everything is added in these two sets.
+   Call wolfram over these sets.
+
+   helper_polinoms_set: during construction we can use 
+    statements, for example
+      let there be two lines l and g and let them be parallel
+      so, parallel is statement
+      it is easier to express conditions using statements than calculate them by hand
+      so, if these kind of statements exists during construction faze, they will produce 
+      polynomials that will be added in construction set.
+      helper_set is only copied to construction_set and then cleared
+
+      so then it can be used in statement set, to generate statement polynomials
+      but these polynomials are copied to statement_set
+*/
+std::vector<Polinom> construction_polinoms;
+std::vector<Polinom> statement_polinoms;
+std::vector<Polinom> helper_polinoms_set;
+std::vector<std::shared_ptr<Variable>> variables;
+
+std::vector<NDGCondition> ndg_polinoms;
+
+/* Some solids are already in canonical position and thus other points should not
+   be put in canonical position (futher simplification must not occure). 
+   This is the reason of existance of variable solids_exists (see function simplify).
+   However, sphere is very specific and it does not have to be in canonical position.
+   Due to implementation, new variable is introduced in order to track if non-unit spehere 
+   is made. If this is the case, then simplification can occure.
+*/
+bool solids_exists = false;
+bool change_solid_exists = false;
+
+/* -------------------------------------------------------------------------------------- */
+/*  Helper functions */
+/* These functions are same for points, lines, solids and plaines
+ * There are two types, if object should exis or not.
+ */
+/* -------------------------------------------------------------------------------------- */
+// This functions checks wheather object with given name exists
+// Throws error if it does not exist
+template <class T>
+using  iter_type = typename std::unordered_map<std::string, T*>::const_iterator; 
+
+template <class T>
+void check_object_exists(std::string name, std::unordered_map<std::string, T*>& table)
+{
+  iter_type<T> it = table.find(name);
+  if(it == table.end()) {
+     //object not found found;
+     yyerror(name + " not defined.");
+  }
+}
+
+// This is called when object should not exist (for example, we are making new point width that name)
+// If it already exists, that is an error
+// Returns lower bound if object does not exists
+template <class T>
+void insert_object(std::string name, T* object, std::unordered_map<std::string, T*>& table)
+{
+  iter_type<T> lb = table.find(name);
+
+  if(lb == table.end()) {
+      table[name] = object;
+  } else {
+      yyerror(name + " defined twice.");
+  }
+}
+
+// Helper function for creating points for solids
+Point* create_point(std::string point_name, bool dependant = true)
+{
+  Point* p1 = new Point(point_name, variables, dependant);
+  insert_object(point_name, p1, table_points);
+
+  return p1;
+}
+
+Point* create_point_with_coordinates(std::string point_name, int val1, int val2, int val3)
+{
+  Point* p1 = new Point(point_name, variables, true);
+  p1->set_all_coordinates_values(val1, val2, val3);
+  insert_object(point_name, p1, table_points);
+  return p1;
+}
+
+void make_base(int number, std::initializer_list<std::string> listPointName)
+{
+  if ((long unsigned int)number != listPointName.size()) 
+    return; // ovo je error, ali ne bi trebalo do ovoga da dodje
+
+  switch(number) {
+    case 3: {
+      create_point_with_coordinates(*(listPointName.begin() + 0), 0, 0, 0);
+      create_point_with_coordinates(*(listPointName.begin() + 1), 1, 0, 0);
+
+      Point* p1 = create_point(*(listPointName.begin() + 2));
+      make_regular_triangle(*p1, construction_polinoms);
+      break;
+    }
+    case 4: {
+      create_point_with_coordinates(*(listPointName.begin() + 0), 0, 0, 0); 
+      create_point_with_coordinates(*(listPointName.begin() + 1), 1, 0, 0);
+      create_point_with_coordinates(*(listPointName.begin() + 2), 1, 1, 0);
+      create_point_with_coordinates(*(listPointName.begin() + 3), 0, 1, 0);
+      break;
+    }
+    case 6: {
+      create_point_with_coordinates(*(listPointName.begin() + 0), 0, 0, 0);
+      create_point_with_coordinates(*(listPointName.begin() + 1), 1, 0, 0);
+
+      Point* p1 = create_point(*(listPointName.begin() + 2));
+      Point* p2 = create_point(*(listPointName.begin() + 3));
+      Point* p3 = create_point(*(listPointName.begin() + 4));
+      Point* p4 = create_point(*(listPointName.begin() + 5));
+      make_regular_hexagon(*p1, *p2, *p3, *p4, construction_polinoms);
+      break;
+    }
+    case 8: {
+      create_point_with_coordinates(*(listPointName.begin() + 0), 0, 0, 0);
+      create_point_with_coordinates(*(listPointName.begin() + 1), 1, 0, 0);
+
+      Point* p1 = create_point(*(listPointName.begin() + 2));
+      Point* p2 = create_point(*(listPointName.begin() + 3));
+      Point* p3 = create_point(*(listPointName.begin() + 4));
+      Point* p4 = create_point(*(listPointName.begin() + 5));
+      Point* p5 = create_point(*(listPointName.begin() + 6));
+      Point* p6 = create_point(*(listPointName.begin() + 7));
+      make_regular_octagon(*p1, *p2, *p3, *p4, *p5, *p6, construction_polinoms);
+      break;
+    }
+    default: return; // ovo je error, ali ne bi trebalo do ovoga da dodje
+  }
+}
+
+%}
+
+%locations
+
+%union {
+  int           number;
+  std::string*  name;
+  Point*        Point_ptr_grammar;
+  Line*         Line_ptr_grammar;
+}
+
+%token POINT_ON_LINE MAKE_POINT MAKE_LINE PROVE EQUAL_POINTS MAKE_MIDPOINT MIDPOINT CONGRUENT
+%token MAKE_REGULAR_HEXAGON MAKE_SPHERE MAKE_UNIT_SPHERE DISTANCE MAKE_NUMBER MAKE_POINT_ON_LINE
+%token MAKE_POINT_IN_PLANE TRANSLATE POINT_ON_SPHERE MAKE_LINE_PLANE_INTERSECTION
+%token SEGMENTS_IN_RATIO POINT_SEGMENT_RATIO MAKE_CUBE MAKE_TETRAHEDRON LINE_INTERSECTION 
+%token MAKE_LINE_INTERSECTION ORTHOGONAL_LINES NOT_SKEW PARALLEL_LINES MAKE_PLANE
+%token POINT_IN_PLANE PARALLEL_PLANES ORTHOGONAL_PLANES PARALLEL_LINE_PLANE ORTHOGONAL_LINE_PLANE
+%token LINE_IN_PLANE LINE_PLANE_INTERSECTION MAKE_LINE_ORTHOGONAL_ON_PLANE MAKE_PYRAMID
+%token MAKE_PLANE_ORTHOGONAL_ON_PLANE EQUAL_ANGLES ANGLE MAKE_POINT_RATIO MAKE_REGULAR_TETRAHEDRON
+%token EQUAL_NUMBERS MAKE_PARALLELOGRAM MAKE_FOOT_ON_PLANE SQUARE_DISTANCE MAKE_POINT_PROJECTION
+%token COLLINEAR MAKE_PLANE_ORTHOGONAL_ON_LINE MAKE_TANGENT_PLANE
+
+%token <number> number_token
+%token <name> name_token
+%type  <Point_ptr_grammar> PointConstruction
+%type  <Line_ptr_grammar> LineConstruction
+
+%nonassoc '='
+
+%%
+/* TODO: pitati Filipa kako prepraviti a da ne mora dna kraju novi red? */
+/* TODO: ne treba nista da ga pitam, kad se otvori novi fajl samo na kraju append newline i to ce da resi problem. */
+GeomConjecture: GeomConstruction '\n' GeomConjecture {}
+| GeomStatementProve '\n' GeomConjecture {}
+| '\n' GeomConjecture {}
+| {}
+;
+
+/* -------------------------------------------------------------------------------------------- */
+/* -------------------------------------------------------------------------------------------- */
+GeomConstruction: PointConstruction {}
+| LineConstruction {}
+| SolidConstruction { 
+  if (!change_solid_exists)
+  solids_exists = true; 
+  }
+| PlaneConstruction {}  
+| NumberConstruction {}
+| GeomStatement {
+  construction_polinoms.insert(construction_polinoms.end(), helper_polinoms_set.begin(), helper_polinoms_set.end());
+  helper_polinoms_set.clear();
+}
+;
+
+GeomStatementProve : PROVE '{' GeomStatementArray '}' {
+  statement_polinoms.insert(statement_polinoms.end(), helper_polinoms_set.begin(), helper_polinoms_set.end());
+  helper_polinoms_set.clear();
+};
+
+GeomStatementArray: GeomStatement '\n' GeomStatementArray {}
+| '\n' GeomStatement {}
+| '\n' GeomStatementArray {}
+| {}
+;
+
+PointConstruction: name_token '=' MAKE_POINT  
+  { 
+    $$ = new Point(*$1, variables, false);
+    insert_object(*$1, $$, table_points);    
+    delete $1;
+                                                          
+  }
+
+|  name_token '=' MAKE_MIDPOINT name_token name_token 
+  { 
+    check_object_exists<Point>(*$4, table_points);
+    check_object_exists<Point>(*$5, table_points);
+
+    $$ = new Point(*$1, variables);
+    $$->make_midpoint(*table_points[*$4], *table_points[*$5], construction_polinoms);
+    insert_object(*$1, $$, table_points);   
+    
+    insert_ndg_points_not_equal(*table_points[*$4], *table_points[*$5], ndg_polinoms);
+
+    delete $1;
+    delete $4;
+    delete $5;                                                    
+  }  
+
+| name_token '=' MAKE_POINT_RATIO name_token name_token number_token number_token
+  {
+    check_object_exists<Point>(*$4, table_points);
+    check_object_exists<Point>(*$5, table_points);
+
+    $$ = new Point(*$1, variables);
+    insert_object(*$1, $$, table_points);
+    point_segment_ratio(*$$, *table_points[*$4], *table_points[*$5], $6, $7, construction_polinoms);
+
+    insert_ndg_points_not_equal(*table_points[*$4], *table_points[*$5], ndg_polinoms);
+
+    delete $4;
+    delete $5;
+  }  
+
+| name_token '=' MAKE_POINT_RATIO name_token name_token name_token name_token
+  {
+    check_object_exists<Point>(*$4, table_points);
+    check_object_exists<Point>(*$5, table_points);
+    check_object_exists<Number>(*$6, table_numbers);
+    check_object_exists<Number>(*$7, table_numbers);
+
+    $$ = new Point(*$1, variables);
+    insert_object(*$1, $$, table_points);
+    point_segment_ratio(*$$, *table_points[*$4], *table_points[*$5], *table_numbers[*$6], 
+                        *table_numbers[*$7], construction_polinoms);
+
+    insert_ndg_points_not_equal(*table_points[*$4], *table_points[*$5], ndg_polinoms);
+    insert_ndg_number_not_zero(*table_numbers[*$6], ndg_polinoms);
+    insert_ndg_number_not_zero(*table_numbers[*$7], ndg_polinoms);
+
+    delete $4;
+    delete $5;
+    delete $6;
+    delete $7;
+  }   
+
+| name_token '=' MAKE_POINT_ON_LINE name_token 
+  {
+    check_object_exists<Line>(*$4, table_lines);
+
+    $$ = new Point(*$1, variables);
+    insert_object(*$1, $$, table_points);
+    point_on_line(*$$, *table_lines[*$4], construction_polinoms);
+
+    insert_ndg_line_vector_not_zero(*table_lines[*$4], ndg_polinoms);
+
+    delete $4;
+  }
+
+| name_token '=' MAKE_POINT_ON_LINE name_token name_token
+  {
+    check_object_exists<Point>(*$4, table_points);
+    check_object_exists<Point>(*$5, table_points);
+
+    $$ = new Point(*$1, variables);
+    insert_object(*$1, $$, table_points);
+    point_on_line(*$$, *table_points[*$4], *table_points[*$5], construction_polinoms);
+
+    insert_ndg_points_not_equal(*table_points[*$4], *table_points[*$5], ndg_polinoms);
+
+    delete $4;
+    delete $5;
+  }
+
+| name_token '=' MAKE_LINE_INTERSECTION name_token name_token 
+  {
+    check_object_exists<Line>(*$4, table_lines);
+    check_object_exists<Line>(*$5, table_lines);
+
+    $$ = new Point(*$1, variables);
+    insert_object(*$1, $$, table_points);
+    line_intersection(*$$, *table_lines[*$4], *table_lines[*$5], construction_polinoms);
+
+    insert_ndg_line_vector_not_zero(*table_lines[*$4], ndg_polinoms);
+    insert_ndg_line_vector_not_zero(*table_lines[*$5], ndg_polinoms);
+
+    insert_ndg_lines_not_parallel(*table_lines[*$4], *table_lines[*$5], ndg_polinoms);
+    insert_ndg_lines_not_skew(*table_lines[*$4], *table_lines[*$5], ndg_polinoms);
+
+    delete $4;
+    delete $5;
+  }
+
+| name_token '=' MAKE_LINE_INTERSECTION name_token name_token name_token name_token
+  {
+    check_object_exists<Point>(*$4, table_points);
+    check_object_exists<Point>(*$5, table_points);
+    check_object_exists<Point>(*$6, table_points);
+    check_object_exists<Point>(*$7, table_points);
+
+    $$ = new Point(*$1, variables);
+    insert_object(*$1, $$, table_points);
+    line_intersection(*$$, *table_points[*$4], *table_points[*$5], *table_points[*$6], *table_points[*$7], construction_polinoms);
+
+    insert_ndg_points_not_equal(*table_points[*$4], *table_points[*$5], ndg_polinoms);
+    insert_ndg_points_not_equal(*table_points[*$6], *table_points[*$7], ndg_polinoms);
+
+    insert_ndg_lines_not_parallel(*table_points[*$4], *table_points[*$5], *table_points[*$6], *table_points[*$7], ndg_polinoms);
+    insert_ndg_lines_not_skew(*table_points[*$4], *table_points[*$5], *table_points[*$6], *table_points[*$7], ndg_polinoms);
+
+    delete $4;
+    delete $5;
+    delete $6;
+    delete $7;
+  }   
+
+| name_token '=' MAKE_POINT_IN_PLANE name_token
+  {
+    check_object_exists<Plane>(*$4, table_planes);
+
+    $$ = new Point(*$1, variables);
+    insert_object(*$1, $$, table_points);
+    point_in_plane(*$$, *table_planes[*$4], construction_polinoms);
+
+    insert_ndg_plane_vector_not_zero(*table_planes[*$4], ndg_polinoms);
+
+    delete $4;
+  }
+
+| name_token '=' TRANSLATE name_token number_token number_token number_token
+  {
+    check_object_exists<Point>(*$4, table_points);
+
+    $$ = new Point(*$1, variables);
+    insert_object(*$1, $$, table_points);
+    $$->translate(*table_points[*$4], $5, $6, $7, construction_polinoms);
+
+    delete $4;
+  }
+
+| name_token '=' TRANSLATE name_token name_token name_token name_token
+  {
+    check_object_exists<Point>(*$4, table_points);
+    check_object_exists<Number>(*$5, table_numbers);
+    check_object_exists<Number>(*$6, table_numbers);
+    check_object_exists<Number>(*$7, table_numbers);
+
+    $$ = new Point(*$1, variables);
+    insert_object(*$1, $$, table_points);
+    translate(*$$, *table_points[*$4], *table_numbers[*$5], *table_numbers[*$6], *table_numbers[*$7], construction_polinoms);
+
+    delete $4;
+    delete $5;
+    delete $6;
+    delete $7;
+  }
+
+| name_token '=' MAKE_LINE_PLANE_INTERSECTION name_token name_token
+  {
+    check_object_exists<Line>(*$4, table_lines);
+    check_object_exists<Plane>(*$5, table_planes);
+
+    $$ = new Point(*$1, variables);
+    insert_object(*$1, $$, table_points);
+    line_plane_intersection(*$$, *table_lines[*$4], *table_planes[*$5], construction_polinoms);
+
+    insert_ndg_line_vector_not_zero(*table_lines[*$4], ndg_polinoms);
+    insert_ndg_plane_vector_not_zero(*table_planes[*$5], ndg_polinoms);
+
+    insert_ndg_plane_and_line_not_parallel(*table_lines[*$4], *table_planes[*$5], ndg_polinoms);
+
+    delete $4;
+    delete $5;
+  } 
+
+| name_token '=' MAKE_LINE_PLANE_INTERSECTION name_token name_token name_token
+  {
+    check_object_exists<Point>(*$4, table_points);
+    check_object_exists<Point>(*$5, table_points);
+    check_object_exists<Plane>(*$6, table_planes);
+
+    $$ = new Point(*$1, variables);
+    insert_object(*$1, $$, table_points);
+    line_plane_intersection(*$$, *table_points[*$4], *table_points[*$5], *table_planes[*$6], construction_polinoms);
+
+    insert_ndg_points_not_equal(*table_points[*$4], *table_points[*$5], ndg_polinoms);
+    insert_ndg_plane_vector_not_zero(*table_planes[*$6], ndg_polinoms);
+
+    insert_ndg_plane_and_line_not_parallel(*table_points[*$4], *table_points[*$5], *table_planes[*$6], ndg_polinoms);
+
+    delete $4;
+    delete $5;
+    delete $6;
+  } 
+
+| name_token '=' MAKE_LINE_PLANE_INTERSECTION name_token name_token name_token name_token
+  {
+    check_object_exists<Line>(*$4, table_lines);
+    check_object_exists<Point>(*$5, table_points);
+    check_object_exists<Point>(*$6, table_points);
+    check_object_exists<Point>(*$7, table_points);    
+
+    $$ = new Point(*$1, variables);
+    insert_object(*$1, $$, table_points);
+    line_plane_intersection(*$$, *table_lines[*$4], *table_points[*$5], *table_points[*$6], 
+            *table_points[*$7], construction_polinoms);
+
+
+    //ndg conditions
+    insert_ndg_line_vector_not_zero(*table_lines[*$4], ndg_polinoms);
+
+    insert_ndg_points_not_equal(*table_points[*$5], *table_points[*$6], ndg_polinoms);
+    insert_ndg_points_not_equal(*table_points[*$5], *table_points[*$7], ndg_polinoms);
+    insert_ndg_points_not_equal(*table_points[*$6], *table_points[*$7], ndg_polinoms);
+
+    insert_ndg_plane_and_line_not_parallel(*table_lines[*$4], *table_points[*$5], *table_points[*$6], 
+            *table_points[*$7], ndg_polinoms);
+
+    delete $4;
+    delete $5;
+    delete $6;
+    delete $7;
+  }       
+
+| name_token '=' MAKE_LINE_PLANE_INTERSECTION name_token name_token name_token name_token name_token
+  {
+    check_object_exists<Point>(*$4, table_points);
+    check_object_exists<Point>(*$5, table_points);
+    check_object_exists<Point>(*$6, table_points);
+    check_object_exists<Point>(*$7, table_points);    
+    check_object_exists<Point>(*$8, table_points);
+
+    $$ = new Point(*$1, variables);
+    insert_object(*$1, $$, table_points);
+    line_plane_intersection(*$$, *table_points[*$4], *table_points[*$5], *table_points[*$6], 
+            *table_points[*$7], *table_points[*$8], construction_polinoms);
+
+    //ndg conditions
+    insert_ndg_points_not_equal(*table_points[*$5], *table_points[*$4], ndg_polinoms);
+
+    insert_ndg_points_not_equal(*table_points[*$6], *table_points[*$7], ndg_polinoms);
+    insert_ndg_points_not_equal(*table_points[*$6], *table_points[*$8], ndg_polinoms);
+    insert_ndg_points_not_equal(*table_points[*$7], *table_points[*$8], ndg_polinoms);
+
+    insert_ndg_plane_and_line_not_parallel(*table_points[*$4], *table_points[*$5], *table_points[*$6], 
+            *table_points[*$7], *table_points[*$8], ndg_polinoms);
+
+    delete $4;
+    delete $5;
+    delete $6;
+    delete $7;
+    delete $8;
+  }   
+
+| name_token '=' MAKE_FOOT_ON_PLANE name_token name_token
+  {
+    check_object_exists<Point>(*$4, table_points);
+    check_object_exists<Plane>(*$5, table_planes);
+
+    $$ = new Point(*$1, variables);
+    insert_object(*$1, $$, table_points);
+    make_foot_on_plane(*$$, *table_points[*$4], *table_planes[*$5], construction_polinoms);
+    
+    //ndgConditons -- plane must be well defined
+    insert_ndg_plane_vector_not_zero(*table_planes[*$5], ndg_polinoms);
+
+    delete $4;
+    delete $5;
+  }
+
+| name_token '=' MAKE_POINT_PROJECTION name_token name_token
+  {
+    check_object_exists<Point>(*$4, table_points);
+    check_object_exists<Plane>(*$5, table_planes);
+
+    $$ = new Point(*$1, variables);
+    insert_object(*$1, $$, table_points);
+    make_point_projection(*$$, *table_points[*$4], *table_planes[*$5], variables, construction_polinoms);
+
+    //ndgConditons -- plane must be well defined
+    insert_ndg_plane_vector_not_zero(*table_planes[*$5], ndg_polinoms);
+
+    delete $4;
+    delete $5;
+  }  
+;
+
+
+LineConstruction: name_token '=' MAKE_LINE name_token name_token  
+  { 
+    check_object_exists<Point>(*$4, table_points);
+    check_object_exists<Point>(*$5, table_points);
+
+    $$ = new Line(*$1, variables);
+    $$->make_line_trough_points(*table_points[*$4], *table_points[*$5], construction_polinoms);
+    insert_object(*$1, $$, table_lines);    
+
+    //ndg -- points cannot be equal
+    insert_ndg_points_not_equal(*table_points[*$5], *table_points[*$4], ndg_polinoms);
+
+    delete $1;
+    delete $4;
+    delete $5;                                                     
+  }
+
+| name_token '=' MAKE_LINE_ORTHOGONAL_ON_PLANE name_token name_token
+  {
+    check_object_exists<Point>(*$4, table_points);
+    check_object_exists<Plane>(*$5, table_planes);
+
+    $$ = new Line(*$1, table_planes[*$5]->x_vec(), table_planes[*$5]->y_vec(), table_planes[*$5]->z_vec(),
+                  table_points[*$4]->x(), table_points[*$4]->y(), table_points[*$4]->z());
+    insert_object(*$1, $$, table_lines);    
+
+    //ndgConditions
+    insert_ndg_plane_vector_not_zero(*table_planes[*$5], ndg_polinoms);
+
+    delete $1;
+    delete $4;
+    delete $5;
+  }
+
+| name_token '=' MAKE_LINE_ORTHOGONAL_ON_PLANE name_token name_token name_token name_token
+  {
+    check_object_exists<Point>(*$4, table_points);
+    check_object_exists<Point>(*$5, table_points);
+    check_object_exists<Point>(*$6, table_points);
+    check_object_exists<Point>(*$7, table_points);
+
+    $$ = new Line(*$1, variables);
+    make_line_orthogonal_on_plane(*$$, *table_points[*$4], *table_points[*$5], *table_points[*$6],
+                                  *table_points[*$7], construction_polinoms);
+    insert_object(*$1, $$, table_lines);    
+
+    //ndgConditions
+    insert_ndg_points_not_equal(*table_points[*$5], *table_points[*$6], ndg_polinoms);
+    insert_ndg_points_not_equal(*table_points[*$6], *table_points[*$7], ndg_polinoms);
+    insert_ndg_points_not_equal(*table_points[*$5], *table_points[*$7], ndg_polinoms);
+
+    delete $1;
+    delete $4;
+    delete $5;
+    delete $6;
+    delete $7;
+  } 
+;
+
+PlaneConstruction: name_token '=' MAKE_PLANE name_token name_token name_token {
+    check_object_exists<Point>(*$4, table_points);
+    check_object_exists<Point>(*$5, table_points);
+    check_object_exists<Point>(*$6, table_points);
+
+    Plane* pi = new Plane(*$1, variables);
+    pi->make_plane_trough_points(*table_points[*$4], *table_points[*$5], *table_points[*$6], construction_polinoms);
+    insert_object(*$1, pi, table_planes); 
+
+    //ndgConditions
+    insert_ndg_points_not_equal(*table_points[*$5], *table_points[*$4], ndg_polinoms);
+    insert_ndg_points_not_equal(*table_points[*$6], *table_points[*$5], ndg_polinoms);
+    insert_ndg_points_not_equal(*table_points[*$6], *table_points[*$4], ndg_polinoms);
+
+    delete $1;
+    delete $4;
+    delete $5; 
+    delete $6;
+}
+
+| name_token '=' MAKE_PLANE_ORTHOGONAL_ON_PLANE name_token name_token 
+  {
+    check_object_exists<Plane>(*$4, table_planes);
+    check_object_exists<Line>(*$5, table_lines);
+
+    Plane* pi = new Plane(*$1, variables);
+    insert_object(*$1, pi, table_planes); 
+    make_plane_orthogonal_on_plane(*pi, *table_planes[*$4], *table_lines[*$5], construction_polinoms);
+
+    //ndgConditions -- line and plane are well-defined
+    insert_ndg_plane_vector_not_zero(*table_planes[*$4], ndg_polinoms);
+    insert_ndg_line_vector_not_zero(*table_lines[*$5], ndg_polinoms);
+
+    delete $1;
+    delete $4;
+    delete $5;
+  }
+
+| name_token '=' MAKE_PLANE_ORTHOGONAL_ON_PLANE name_token name_token name_token
+  {
+    check_object_exists<Plane>(*$4, table_planes);
+    check_object_exists<Point>(*$5, table_points);
+    check_object_exists<Point>(*$6, table_points);
+
+    Plane* pi = new Plane(*$1, variables);
+    insert_object(*$1, pi, table_planes); 
+    make_plane_orthogonal_on_plane(*pi, *table_planes[*$4], *table_points[*$5], *table_points[*$6], construction_polinoms);
+
+    //ndgConditions
+    insert_ndg_plane_vector_not_zero(*table_planes[*$4], ndg_polinoms);
+    insert_ndg_points_not_equal(*table_points[*$5], *table_points[*$6], ndg_polinoms);
+
+    delete $1;
+    delete $4;
+    delete $5;
+    delete $6;
+  }
+
+| name_token '=' MAKE_PLANE_ORTHOGONAL_ON_LINE name_token name_token
+{
+    check_object_exists<Point>(*$4, table_points);
+    check_object_exists<Line>(*$5, table_lines);
+
+    Plane* pi = new Plane(*$1, variables);
+    insert_object(*$1, pi, table_planes);
+    make_plane_orthogonal_on_plane(*pi, *table_points[*$4], *table_lines[*$5], construction_polinoms);
+
+    //ndgConditions
+    insert_ndg_line_vector_not_zero(*table_lines[*$5], ndg_polinoms);
+    insert_ndg_point_not_on_line(*table_points[*$4], *table_lines[*$5], ndg_polinoms);
+
+    delete $1;
+    delete $4;
+    delete $5;
+}  
+
+| name_token '=' MAKE_PLANE
+  {
+    Plane* pi = new Plane(*$1, variables, false);
+    insert_object(*$1, pi, table_planes);   
+    delete $1;
+  }  
+
+| name_token "=" MAKE_TANGENT_PLANE name_token name_token
+  {
+    check_object_exists<Point>(*$5, table_points);
+    check_object_exists<Sphere>(*$4, table_spheres);  
+
+    Plane* pi = new Plane(*$1, variables);
+    insert_object(*$1, pi, table_planes);
+    make_plane_orthogonal_on_plane(*pi, *table_spheres[*$4], *table_points[*$5], construction_polinoms);
+
+    delete $1;
+    delete $4;
+    delete $5;
+  }
+;
+
+SolidConstruction: name_token name_token name_token name_token name_token name_token name_token name_token '=' MAKE_CUBE {
+  // Create 8 new points in canonical position
+  create_point_with_coordinates(*$1, 0, 0, 0);
+  create_point_with_coordinates(*$2, 1, 0, 0);
+  create_point_with_coordinates(*$3, 1, 1, 0);
+  create_point_with_coordinates(*$4, 0, 1, 0);
+  create_point_with_coordinates(*$5, 0, 0, 1);
+  create_point_with_coordinates(*$6, 1, 0, 1);
+  create_point_with_coordinates(*$7, 1, 1, 1);
+  create_point_with_coordinates(*$8, 0, 1, 1);
+
+  delete $1;
+  delete $2;
+  delete $3;
+  delete $4;
+  delete $5;
+  delete $6;
+  delete $7;
+  delete $8;
+}
+
+| name_token name_token name_token name_token name_token name_token name_token name_token '=' MAKE_CUBE number_token {
+  // Create 8 new points in canonical position
+  create_point_with_coordinates(*$1, 0, 0, 0);
+  create_point_with_coordinates(*$2, $11, 0, 0);
+  create_point_with_coordinates(*$3, $11, $11, 0);
+  create_point_with_coordinates(*$4, 0, $11, 0);
+  create_point_with_coordinates(*$5, 0, 0, $11);
+  create_point_with_coordinates(*$6, $11, 0, $11);
+  create_point_with_coordinates(*$7, $11, $11, $11);
+  create_point_with_coordinates(*$8, 0, $11, $11);
+
+  delete $1;
+  delete $2;
+  delete $3;
+  delete $4;
+  delete $5;
+  delete $6;
+  delete $7;
+  delete $8;
+}
+
+| name_token '=' MAKE_CUBE {
+  // Create 8 new points in canonical position
+  create_point_with_coordinates(*$1 + ".A", 0, 0, 0);
+  create_point_with_coordinates(*$1 + ".B" , 1, 0, 0);
+  create_point_with_coordinates(*$1 + ".C", 1, 1, 0);
+  create_point_with_coordinates(*$1 + ".D", 0, 1, 0);
+  create_point_with_coordinates(*$1 + ".A1", 0, 0, 1);
+  create_point_with_coordinates(*$1 + ".B1", 1, 0, 1);
+  create_point_with_coordinates(*$1 + ".C1", 1, 1, 1);
+  create_point_with_coordinates(*$1 + ".D1", 0, 1, 1);
+
+  delete $1;
+}
+
+| name_token name_token name_token name_token '=' MAKE_REGULAR_TETRAHEDRON {
+  // Create 4 new points, 2 are in canonical position
+  create_point_with_coordinates(*$1, 0, 0, 0);
+  create_point_with_coordinates(*$2, 1, 0, 0);
+
+  Point* p1 = create_point(*$3);
+  Point* p2 = create_point(*$4);
+
+  make_regular_tetrahedron(*p1, *p2, construction_polinoms);
+
+  delete $1;
+  delete $2;
+  delete $3;
+  delete $4;
+}
+
+| name_token '=' MAKE_REGULAR_TETRAHEDRON {
+  // Create 4 new points, 2 are in canonical position
+  create_point_with_coordinates(*$1 + ".A", 0, 0, 0);
+  create_point_with_coordinates(*$1 + ".B", 1, 0, 0);
+
+  Point* p1 = create_point(*$1 + ".C");
+  Point* p2 = create_point(*$1 + ".D");
+
+  make_regular_tetrahedron(*p1, *p2, construction_polinoms);
+
+  delete $1;
+}
+
+| name_token name_token name_token name_token '=' MAKE_TETRAHEDRON {
+  // Create 4 new points, 2 are in canonical position
+  create_point_with_coordinates(*$1, 0, 0, 0);
+  create_point_with_coordinates(*$2, 1, 0, 0);
+
+  Point* p1 = create_point(*$3);
+  Point* p2 = create_point(*$4);
+
+  make_tetrahedron(*p1, *p2, construction_polinoms, variables);
+
+  delete $1;
+  delete $2;
+  delete $3;
+  delete $4;
+}
+
+| name_token '=' MAKE_TETRAHEDRON {
+  // Create 4 new points, 2 are in canonical position
+  create_point_with_coordinates(*$1 + ".A", 0, 0, 0);
+  create_point_with_coordinates(*$1 + ".B", 1, 0, 0);
+
+  Point* p1 = create_point(*$1 + ".C");
+  Point* p2 = create_point(*$1 + ".D");
+
+  make_tetrahedron(*p1, *p2, construction_polinoms, variables);
+
+  delete $1;
+}
+
+| name_token name_token name_token name_token name_token name_token '=' MAKE_REGULAR_HEXAGON {
+  create_point_with_coordinates(*$1, 0, 0, 0);
+  create_point_with_coordinates(*$2, 1, 0, 0);
+
+  Point* p3 = create_point(*$3);
+  Point* p4 = create_point(*$4);
+  Point* p5 = create_point(*$5);
+  Point* p6 = create_point(*$6);
+
+  make_regular_hexagon(*p3, *p4, *p5, *p6, construction_polinoms);
+
+  delete $1;
+  delete $2;
+  delete $3;
+  delete $4;
+  delete $5;
+  delete $6;
+}
+
+| name_token '=' MAKE_REGULAR_HEXAGON {
+  create_point_with_coordinates(*$1 + ".A1", 0, 0, 0);
+  create_point_with_coordinates(*$1 + ".A2", 1, 0, 0);
+
+  Point* p3 = create_point(*$1 + ".A3");
+  Point* p4 = create_point(*$1 + ".A4");
+  Point* p5 = create_point(*$1 + ".A5");
+  Point* p6 = create_point(*$1 + ".A6");
+
+  make_regular_hexagon(*p3, *p4, *p5, *p6, construction_polinoms);
+
+  delete $1;
+}
+
+| SphereConstruction {}
+
+| name_token name_token name_token name_token '=' MAKE_PYRAMID number_token {
+  if ($7 != 3)
+    yyerror("Number of points in pyramid base is not correct.");
+
+  make_base($7, {*$1, *$2, *$3});
+  Point* p3 = create_point(*$4);
+  make_top_vertex(*p3, $7, construction_polinoms);
+
+  delete $1;
+  delete $2;
+  delete $3;
+  delete $4;
+}
+
+| name_token name_token name_token name_token name_token '=' MAKE_PYRAMID number_token {
+  if ($8 != 4)
+    yyerror("Number of points in pyramid base is not correct.");
+
+  make_base($8, {*$1, *$2, *$3, *$4});
+  Point* p3 = create_point(*$5);
+  make_top_vertex(*p3, $8, construction_polinoms);
+
+  delete $1;
+  delete $2;
+  delete $3;
+  delete $4;
+  delete $5;
+}
+
+| name_token name_token name_token name_token name_token name_token name_token '=' MAKE_PYRAMID number_token {
+  if ($10 != 6)
+    yyerror("Number of points in pyramid base is not correct.");
+
+  make_base($10, {*$1, *$2, *$3, *$4, *$5, *$6});
+  Point* p3 = create_point(*$7);
+  make_top_vertex(*p3, $10, construction_polinoms);
+
+  delete $1;
+  delete $2;
+  delete $3;
+  delete $4;
+  delete $5;
+  delete $6;
+  delete $7;
+}
+
+| name_token name_token name_token name_token name_token name_token name_token name_token name_token '=' MAKE_PYRAMID number_token {
+  if ($12 != 8)
+    yyerror("Number of points in pyramid base is not correct.");
+
+  make_base($12, {*$1, *$2, *$3, *$4, *$5, *$6, *$7, *$8});
+  Point* p3 = create_point(*$9);
+  make_top_vertex(*p3, $12, construction_polinoms);
+
+  delete $1;
+  delete $2;
+  delete $3;
+  delete $4;
+  delete $5;
+  delete $6;
+  delete $7;
+  delete $8;
+  delete $9;
+}
+
+| name_token name_token name_token name_token '=' MAKE_PARALLELOGRAM {
+  change_solid_exists = true;
+
+  Point* p1 = create_point(*$1, false);
+  Point* p2 = create_point(*$2, false);
+  Point* p3 = create_point(*$3);
+  Point* p4 = create_point(*$4, false);
+
+  make_parallelogram(*p1, *p2, *p3, *p4, construction_polinoms);
+
+  delete $1;
+  delete $2;
+  delete $3;
+  delete $4;
+}
+
+;
+
+
+SphereConstruction: name_token '=' MAKE_UNIT_SPHERE {
+  /* Sphere in canonical position, name.center(0, 0, 0), name.radius = 1 */
+
+  Point* center = create_point_with_coordinates(*$1 + ".center", 0, 0, 0);
+
+  std::string radius_name = *$1 + ".radius";
+  Number* r = new Number(radius_name, variables, 1, true);
+  insert_object(radius_name, r, table_numbers);
+
+  Sphere* s = new Sphere(*$1, true);
+  s->set_center_and_radius(*center, *r);
+  insert_object(*$1, s, table_spheres);
+  
+  delete $1;
+}
+
+| name_token name_token name_token '=' MAKE_UNIT_SPHERE {
+  /* Sphere in canonical position, name, center and radius */
+  Point* center = create_point_with_coordinates(*$2, 0, 0, 0);
+
+  std::string radius_name = *$3;
+  Number* r = new Number(radius_name, variables, 1, true);
+  insert_object(radius_name, r, table_numbers);
+   
+  Sphere* s = new Sphere(*$1, true);
+  s->set_center_and_radius(*center, *r);
+  insert_object(*$1, s, table_spheres);
+
+  delete $1;
+  delete $2;
+  delete $3;
+}
+
+| name_token '=' MAKE_SPHERE {
+  /* Sphere with: name.center(cx, cy, cz), name.radius = r */
+  change_solid_exists = true;
+  
+  Point* center = create_point(*$1 + ".center");
+
+  //todo: add radius
+  std::string radius_name = *$1 + ".radius";
+  Number* r = new Number(radius_name, variables, true);
+  insert_object(radius_name, r, table_numbers);
+
+  Sphere* s = new Sphere(*$1, false);
+  s->set_center_and_radius(*center, *r);
+  insert_object(*$1, s, table_spheres);
+
+  //insert ndgConditions - radius not zero
+  insert_ndg_number_not_zero(*r, ndg_polinoms);
+
+  delete $1;
+}
+
+| name_token name_token name_token '=' MAKE_SPHERE {
+  /* Sphere with: name, center(cx, cy, cz), radius = r */
+  change_solid_exists = true;
+
+  Point* center = create_point(*$2);
+
+  //todo: add radius
+  std::string radius_name = *$3;
+  Number* r = new Number(radius_name, variables, true);
+  insert_object(radius_name, r, table_numbers);
+
+  Sphere* s = new Sphere(*$1, false);
+  s->set_center_and_radius(*center, *r);
+  insert_object(*$1, s, table_spheres);
+
+  //insert ndgConditions - radius not zero
+  insert_ndg_number_not_zero(*r, ndg_polinoms);
+
+  delete $1;
+  delete $2;
+  delete $3;
+}
+
+| name_token '=' MAKE_SPHERE name_token name_token {
+  /* Sphere: given center O and radius r */
+  change_solid_exists = true;
+
+  /* check for errors. */
+  check_object_exists<Point>(*$4, table_points);
+  check_object_exists<Number>(*$5, table_numbers);
+
+  Sphere* s = new Sphere(*$1, true);
+  s->set_center_and_radius(*table_points[*$4], *table_numbers[*$5]);
+  insert_object(*$1, s, table_spheres);
+
+  //insert ndgConditions - radius not zero
+  insert_ndg_number_not_zero(*table_numbers[*$5], ndg_polinoms);
+
+  delete $1;
+  delete $4;
+  delete $5;
+}
+
+| name_token '=' MAKE_SPHERE name_token name_token name_token name_token {
+  /* Sphere: four point on sphere, name.center(cx, cy, cz), name.radius = r  */
+  change_solid_exists = true;
+
+  /* check for errors. */
+  check_object_exists<Point>(*$4, table_points);
+  check_object_exists<Point>(*$5, table_points);
+  check_object_exists<Point>(*$6, table_points);
+  check_object_exists<Point>(*$7, table_points);
+
+  Point* center = create_point(*$1 + ".center");
+
+  std::string radius_name = *$1 + ".radius";
+  Number* r = new Number(radius_name, variables, true);
+  insert_object(radius_name, r, table_numbers);
+
+  Sphere* s = new Sphere(*$1, true);
+  s->set_center_and_radius(*center, *r);
+  s->make_sphere_through_four_points(*table_points[*$4], *table_points[*$5], 
+                                      *table_points[*$6], *table_points[*$7], *center, construction_polinoms);
+  insert_object(*$1, s, table_spheres);
+
+  //insert ndgConditions:
+  insert_ndg_points_not_equal(*table_points[*$4], *table_points[*$5], ndg_polinoms);
+  insert_ndg_points_not_equal(*table_points[*$4], *table_points[*$6], ndg_polinoms);
+  insert_ndg_points_not_equal(*table_points[*$4], *table_points[*$7], ndg_polinoms);
+  insert_ndg_points_not_equal(*table_points[*$6], *table_points[*$5], ndg_polinoms);
+  insert_ndg_points_not_equal(*table_points[*$7], *table_points[*$5], ndg_polinoms);
+  insert_ndg_points_not_equal(*table_points[*$6], *table_points[*$7], ndg_polinoms);
+
+  delete $1;
+  delete $4;
+  delete $5;
+  delete $6;
+  delete $7;
+}
+
+| name_token name_token name_token '=' MAKE_SPHERE name_token name_token name_token name_token {
+  /* Sphere: four point on sphere, name.center(cx, cy, cz), name.radius = r  */
+  change_solid_exists = true;
+
+  /* check for errors. */
+  check_object_exists<Point>(*$6, table_points);
+  check_object_exists<Point>(*$7, table_points);
+  check_object_exists<Point>(*$8, table_points);
+  check_object_exists<Point>(*$9, table_points);
+
+  Point* center = create_point(*$2);
+
+  std::string radius_name = *$3;
+  Number* r = new Number(radius_name, variables, true);
+  insert_object(radius_name, r, table_numbers);
+
+  Sphere* s = new Sphere(*$1, true);
+  s->set_center_and_radius(*center, *r);
+  s->make_sphere_through_four_points(*table_points[*$6], *table_points[*$7], 
+                                      *table_points[*$8], *table_points[*$9], *center, construction_polinoms);
+  insert_object(*$1, s, table_spheres);
+
+  //ndgConditions
+  //insert ndgConditions:
+  insert_ndg_points_not_equal(*table_points[*$6], *table_points[*$7], ndg_polinoms);
+  insert_ndg_points_not_equal(*table_points[*$6], *table_points[*$8], ndg_polinoms);
+  insert_ndg_points_not_equal(*table_points[*$6], *table_points[*$9], ndg_polinoms);
+  insert_ndg_points_not_equal(*table_points[*$7], *table_points[*$8], ndg_polinoms);
+  insert_ndg_points_not_equal(*table_points[*$7], *table_points[*$9], ndg_polinoms);
+  insert_ndg_points_not_equal(*table_points[*$8], *table_points[*$9], ndg_polinoms);
+
+  insert_ndg_number_not_zero(*r, ndg_polinoms);
+
+  delete $1;
+  delete $2;
+  delete $3;
+  delete $6;
+  delete $8;
+  delete $9;
+  delete $7;
+}
+;
+
+NumberConstruction: name_token '=' SQUARE_DISTANCE name_token name_token {
+  /* check for errors. */
+  check_object_exists<Point>(*$4, table_points);
+  check_object_exists<Point>(*$5, table_points);
+
+  Number* r = new Number(*$1, variables, true);
+  r->make_square_distance(*table_points[*$4], *table_points[*$5], construction_polinoms);
+  insert_object(*$1, r, table_numbers);
+
+  delete $1;
+  delete $4;
+  delete $5;
+}
+
+| name_token '=' DISTANCE name_token name_token {
+  /* check for errors. */
+  check_object_exists<Point>(*$4, table_points);
+  check_object_exists<Point>(*$5, table_points);
+
+  Number* r = new Number(*$1, variables, true);
+  r->make_distance(*table_points[*$4], *table_points[*$5], construction_polinoms);
+  insert_object(*$1, r, table_numbers);
+
+  delete $1;
+  delete $4;
+  delete $5;
+}
+
+| name_token '=' DISTANCE name_token name_token name_token {
+  check_object_exists<Point>(*$4, table_points);
+  check_object_exists<Point>(*$5, table_points);
+  check_object_exists<Point>(*$6, table_points);
+
+  Number* r = new Number(*$1, variables, true);
+  r->make_distance_line(*table_points[*$4], *table_points[*$5], *table_points[*$6], construction_polinoms, variables);
+  insert_object(*$1, r, table_numbers);
+
+  delete $1;
+  delete $4;
+  delete $5;
+  delete $6;
+}
+
+| name_token '=' number_token {
+
+  Number* r = new Number(*$1, variables, $3, true);
+  insert_object(*$1, r, table_numbers);
+
+  delete $1;
+}
+| name_token '=' MAKE_NUMBER {
+
+  Number* r = new Number(*$1, variables,false);
+  insert_object(*$1, r, table_numbers);
+
+  delete $1;
+}
+| name_token '=' number_token '*' name_token {
+
+  iter_type<Number> it = table_numbers.find(*$1);
+  if(it == table_numbers.end()) {
+    Number* r = new Number(*$1, variables,true);
+    insert_object(*$1, r, table_numbers);
+  }
+
+  multiply(*table_numbers[*$1], $3, *table_numbers[*$5], construction_polinoms);
+
+  delete $1;
+  delete $5;
+}
+
+| name_token '=' name_token '*' name_token {
+
+  iter_type<Number> it = table_numbers.find(*$1);
+  if(it == table_numbers.end()) {
+    Number* r = new Number(*$1, variables,true);
+    insert_object(*$1, r, table_numbers);
+  }
+
+  multiply(*table_numbers[*$1], *table_numbers[*$3], *table_numbers[*$5], construction_polinoms);
+
+  delete $1;
+  delete $3;
+  delete $5;
+}
+
+| name_token '=' name_token '/' name_token {
+
+  check_object_exists<Number>(*$3, table_numbers);
+  check_object_exists<Number>(*$5, table_numbers);
+
+  iter_type<Number> it = table_numbers.find(*$1);
+  if(it == table_numbers.end()) {
+    Number* r = new Number(*$1, variables,true);
+    insert_object(*$1, r, table_numbers);
+  }
+
+  division(*table_numbers[*$1], *table_numbers[*$3], *table_numbers[*$5], construction_polinoms);
+
+  delete $1;
+  delete $3;
+  delete $5;
+}
+
+| name_token '=' name_token '+' name_token {
+
+  check_object_exists<Number>(*$3, table_numbers);
+  check_object_exists<Number>(*$5, table_numbers);
+
+  iter_type<Number> it = table_numbers.find(*$1);
+  if(it == table_numbers.end()) {
+    Number* r = new Number(*$1, variables,true);
+    insert_object(*$1, r, table_numbers);
+  }
+
+  addition(*table_numbers[*$1], *table_numbers[*$3], *table_numbers[*$5], construction_polinoms);
+
+  delete $1;
+  delete $3;
+  delete $5;
+}
+;
+
+/* -------------------------------------------------------------------------------------------- */
+/* -------------------------------------------------------------------------------------------- */
+GeomStatement: POINT_ON_LINE name_token name_token {
+    check_object_exists<Point>(*$2, table_points);
+    check_object_exists<Line>(*$3, table_lines);
+    
+    point_on_line(*table_points[*$2], *table_lines[*$3], helper_polinoms_set);
+  }
+
+
+| POINT_ON_LINE name_token name_token name_token {
+  check_object_exists<Point>(*$2, table_points);
+  check_object_exists<Point>(*$3, table_points);
+  check_object_exists<Point>(*$4, table_points);
+
+    point_on_line(*table_points[*$2], *table_points[*$3], *table_points[*$4], helper_polinoms_set);
+  }
+
+| EQUAL_POINTS name_token name_token {
+  check_object_exists<Point>(*$2, table_points);
+  check_object_exists<Point>(*$3, table_points);
+
+  equal_points(*table_points[*$2], *table_points[*$3], helper_polinoms_set);
+}
+
+| MIDPOINT name_token name_token name_token {
+  check_object_exists<Point>(*$2, table_points);
+  check_object_exists<Point>(*$3, table_points);
+  check_object_exists<Point>(*$4, table_points);
+
+  midpoint(*table_points[*$2], *table_points[*$3], *table_points[*$4], helper_polinoms_set);
+
+}
+
+| CONGRUENT name_token name_token name_token name_token {
+  check_object_exists<Point>(*$2, table_points);
+  check_object_exists<Point>(*$3, table_points);
+  check_object_exists<Point>(*$4, table_points);
+  check_object_exists<Point>(*$5, table_points);
+
+  congruent(*table_points[*$2], *table_points[*$3], *table_points[*$4], *table_points[*$5], 
+            helper_polinoms_set, variables, construction_polinoms);
+}
+
+| SEGMENTS_IN_RATIO name_token name_token name_token name_token number_token number_token {
+  check_object_exists<Point>(*$2, table_points);
+  check_object_exists<Point>(*$3, table_points);
+  check_object_exists<Point>(*$4, table_points);
+  check_object_exists<Point>(*$5, table_points);
+
+  segments_in_ratio(*table_points[*$2], *table_points[*$3], *table_points[*$4], *table_points[*$5], 
+                    $6, $7, helper_polinoms_set, variables, construction_polinoms);
+}
+
+| POINT_SEGMENT_RATIO name_token name_token name_token number_token number_token {
+  check_object_exists<Point>(*$2, table_points);
+  check_object_exists<Point>(*$3, table_points);
+  check_object_exists<Point>(*$4, table_points);
+
+  point_segment_ratio(*table_points[*$2], *table_points[*$3], *table_points[*$4], $5, $6, helper_polinoms_set);
+}
+
+| LINE_INTERSECTION name_token name_token name_token {
+  check_object_exists<Point>(*$2, table_points);
+  check_object_exists<Line>(*$3, table_lines);
+  check_object_exists<Line>(*$4, table_lines);
+
+  line_intersection(*table_points[*$2], *table_lines[*$3], *table_lines[*$4], helper_polinoms_set);
+}
+
+| LINE_INTERSECTION name_token name_token name_token name_token name_token {
+  check_object_exists<Point>(*$2, table_points);
+  check_object_exists<Point>(*$3, table_points);
+  check_object_exists<Point>(*$4, table_points);
+  check_object_exists<Point>(*$5, table_points);
+  check_object_exists<Point>(*$6, table_points);
+
+  line_intersection(*table_points[*$2], *table_points[*$3], *table_points[*$4], *table_points[*$5],
+                    *table_points[*$6], helper_polinoms_set);
+}
+
+| ORTHOGONAL_LINES name_token name_token {
+  check_object_exists<Line>(*$2, table_lines);
+  check_object_exists<Line>(*$3, table_lines);
+
+  orthogonal_lines(*table_lines[*$2], *table_lines[*$3], helper_polinoms_set);
+}
+
+| ORTHOGONAL_LINES name_token name_token name_token name_token {
+  check_object_exists<Point>(*$2, table_points);
+  check_object_exists<Point>(*$3, table_points);
+  check_object_exists<Point>(*$4, table_points);
+  check_object_exists<Point>(*$5, table_points);
+
+  orthogonal_lines(*table_points[*$2], *table_points[*$3], *table_points[*$4], *table_points[*$5],
+                    helper_polinoms_set);
+}
+
+| NOT_SKEW name_token name_token {
+  check_object_exists<Line>(*$2, table_lines);
+  check_object_exists<Line>(*$3, table_lines);
+
+  not_skew(*table_lines[*$2], *table_lines[*$3], helper_polinoms_set);
+}
+
+| NOT_SKEW name_token name_token name_token name_token {
+  check_object_exists<Point>(*$2, table_points);
+  check_object_exists<Point>(*$3, table_points);
+  check_object_exists<Point>(*$4, table_points);
+  check_object_exists<Point>(*$5, table_points);
+
+  not_skew(*table_points[*$2], *table_points[*$3], *table_points[*$4], *table_points[*$5],
+                    helper_polinoms_set);
+} 
+
+| PARALLEL_LINES name_token name_token {
+  check_object_exists<Line>(*$2, table_lines);
+  check_object_exists<Line>(*$3, table_lines);
+
+  parallel_lines(*table_lines[*$2], *table_lines[*$3], helper_polinoms_set);
+}
+
+| PARALLEL_LINES name_token name_token name_token name_token {
+  check_object_exists<Point>(*$2, table_points);
+  check_object_exists<Point>(*$3, table_points);
+  check_object_exists<Point>(*$4, table_points);
+  check_object_exists<Point>(*$5, table_points);
+
+  parallel_lines(*table_points[*$2], *table_points[*$3], *table_points[*$4], *table_points[*$5],
+                    helper_polinoms_set);
+}
+
+| POINT_IN_PLANE name_token name_token name_token name_token {
+    check_object_exists<Point>(*$2, table_points);
+    check_object_exists<Point>(*$3, table_points);
+    check_object_exists<Point>(*$4, table_points);
+    check_object_exists<Point>(*$5, table_points);
+
+    point_in_plane(*table_points[*$2], *table_points[*$3], *table_points[*$4], *table_points[*$5],
+                    helper_polinoms_set);
+}
+
+| POINT_IN_PLANE name_token name_token {
+    check_object_exists<Point>(*$2, table_points);
+    check_object_exists<Plane>(*$3, table_planes);
+
+    point_in_plane(*table_points[*$2], *table_planes[*$3], helper_polinoms_set);
+}
+
+| PARALLEL_PLANES name_token name_token {
+    check_object_exists<Plane>(*$2, table_planes);
+    check_object_exists<Plane>(*$3, table_planes);
+
+    parallel_planes(*table_planes[*$2], *table_planes[*$3], helper_polinoms_set);
+}
+
+| PARALLEL_PLANES name_token name_token name_token name_token name_token name_token{
+    check_object_exists<Point>(*$2, table_points);
+    check_object_exists<Point>(*$3, table_points);
+    check_object_exists<Point>(*$4, table_points);
+    check_object_exists<Point>(*$5, table_points);
+    check_object_exists<Point>(*$6, table_points);
+    check_object_exists<Point>(*$7, table_points);
+
+    parallel_planes(*table_points[*$2], *table_points[*$3], *table_points[*$4], *table_points[*$5],
+                     *table_points[*$6],  *table_points[*$7], helper_polinoms_set, variables, construction_polinoms);
+} 
+
+| PARALLEL_PLANES name_token name_token name_token name_token {
+    check_object_exists<Plane>(*$2, table_planes);
+    check_object_exists<Point>(*$3, table_points);
+    check_object_exists<Point>(*$4, table_points);
+    check_object_exists<Point>(*$5, table_points);
+
+    parallel_planes(*table_planes[*$2], *table_points[*$3], *table_points[*$4], *table_points[*$5],
+                     helper_polinoms_set, variables, construction_polinoms);
+} 
+
+| ORTHOGONAL_PLANES name_token name_token {
+    check_object_exists<Plane>(*$2, table_planes);
+    check_object_exists<Plane>(*$3, table_planes);
+
+    orthogonal_planes(*table_planes[*$2], *table_planes[*$3], helper_polinoms_set);
+}
+
+| ORTHOGONAL_PLANES name_token name_token name_token name_token name_token name_token{
+    check_object_exists<Point>(*$2, table_points);
+    check_object_exists<Point>(*$3, table_points);
+    check_object_exists<Point>(*$4, table_points);
+    check_object_exists<Point>(*$5, table_points);
+    check_object_exists<Point>(*$6, table_points);
+    check_object_exists<Point>(*$7, table_points);
+
+    orthogonal_planes(*table_points[*$2], *table_points[*$3], *table_points[*$4], *table_points[*$5],
+                     *table_points[*$6],  *table_points[*$7], helper_polinoms_set, variables, construction_polinoms);
+} 
+
+| ORTHOGONAL_PLANES name_token name_token name_token name_token {
+    check_object_exists<Plane>(*$2, table_planes);
+    check_object_exists<Point>(*$3, table_points);
+    check_object_exists<Point>(*$4, table_points);
+    check_object_exists<Point>(*$5, table_points);
+
+    orthogonal_planes(*table_planes[*$2], *table_points[*$3], *table_points[*$4], *table_points[*$5],
+                     helper_polinoms_set, variables, construction_polinoms);
+} 
+
+| PARALLEL_LINE_PLANE name_token name_token {
+  check_object_exists<Line>(*$2, table_lines);
+  check_object_exists<Plane>(*$3, table_planes);
+
+  parallel_line_plane(*table_lines[*$2], *table_planes[*$3], helper_polinoms_set);
+}
+
+| PARALLEL_LINE_PLANE name_token name_token name_token {
+  check_object_exists<Point>(*$2, table_points);
+  check_object_exists<Point>(*$3, table_points);
+  check_object_exists<Plane>(*$4, table_planes);
+
+  parallel_line_plane(*table_points[*$2], *table_points[*$3], *table_planes[*$4], helper_polinoms_set);
+
+}
+
+| PARALLEL_LINE_PLANE name_token name_token name_token name_token {
+  check_object_exists<Line>(*$2, table_lines);
+  check_object_exists<Point>(*$3, table_points);
+  check_object_exists<Point>(*$4, table_points);
+  check_object_exists<Point>(*$5, table_points);
+
+  parallel_line_plane(*table_lines[*$2], *table_points[*$3], *table_points[*$4], *table_points[*$5],
+                        helper_polinoms_set, variables, construction_polinoms);
+}
+
+| PARALLEL_LINE_PLANE name_token name_token name_token name_token name_token {
+  check_object_exists<Point>(*$2, table_points);
+  check_object_exists<Point>(*$3, table_points);
+  check_object_exists<Point>(*$4, table_points);
+  check_object_exists<Point>(*$5, table_points);
+  check_object_exists<Point>(*$6, table_points);
+
+  parallel_line_plane(*table_points[*$2], *table_points[*$3], *table_points[*$4], *table_points[*$5],
+                        *table_points[*$6], helper_polinoms_set, variables, construction_polinoms);
+}
+
+| ORTHOGONAL_LINE_PLANE name_token name_token {
+  check_object_exists<Line>(*$2, table_lines);
+  check_object_exists<Plane>(*$3, table_planes);
+
+  orthogonal_line_plane(*table_lines[*$2], *table_planes[*$3], helper_polinoms_set);
+}
+
+| ORTHOGONAL_LINE_PLANE name_token name_token name_token {
+  check_object_exists<Point>(*$2, table_points);
+  check_object_exists<Point>(*$3, table_points);
+  check_object_exists<Plane>(*$4, table_planes);
+
+  orthogonal_line_plane(*table_points[*$2], *table_points[*$3], *table_planes[*$4], helper_polinoms_set);
+
+}
+
+| ORTHOGONAL_LINE_PLANE name_token name_token name_token name_token {
+  check_object_exists<Line>(*$2, table_lines);
+  check_object_exists<Point>(*$3, table_points);
+  check_object_exists<Point>(*$4, table_points);
+  check_object_exists<Point>(*$5, table_points);
+
+  orthogonal_line_plane(*table_lines[*$2], *table_points[*$3], *table_points[*$4], *table_points[*$5],
+                        helper_polinoms_set);
+}
+
+| ORTHOGONAL_LINE_PLANE name_token name_token name_token name_token name_token {
+  check_object_exists<Point>(*$2, table_points);
+  check_object_exists<Point>(*$3, table_points);
+  check_object_exists<Point>(*$4, table_points);
+  check_object_exists<Point>(*$5, table_points);
+  check_object_exists<Point>(*$6, table_points);
+
+  orthogonal_line_plane(*table_points[*$2], *table_points[*$3], *table_points[*$4], *table_points[*$5],
+                        *table_points[*$6], helper_polinoms_set);
+}
+
+| LINE_IN_PLANE name_token name_token {
+  check_object_exists<Line>(*$2, table_lines);
+  check_object_exists<Plane>(*$3, table_planes);
+
+  line_in_plane(*table_lines[*$2], *table_planes[*$3], helper_polinoms_set);
+}
+
+| LINE_IN_PLANE name_token name_token name_token {
+  check_object_exists<Point>(*$2, table_points);
+  check_object_exists<Point>(*$3, table_points);
+  check_object_exists<Plane>(*$4, table_planes);
+
+  line_in_plane(*table_points[*$2], *table_points[*$3], *table_planes[*$4], helper_polinoms_set);
+}
+
+| LINE_IN_PLANE name_token name_token name_token name_token {
+  check_object_exists<Line>(*$2, table_lines);
+  check_object_exists<Point>(*$3, table_points);
+  check_object_exists<Point>(*$4, table_points);
+  check_object_exists<Point>(*$5, table_points);
+
+  line_in_plane(*table_lines[*$2], *table_points[*$3], *table_points[*$4], *table_points[*$5],
+                        helper_polinoms_set, variables, construction_polinoms);
+}
+
+| LINE_IN_PLANE name_token name_token name_token name_token name_token {
+  check_object_exists<Point>(*$2, table_points);
+  check_object_exists<Point>(*$3, table_points);
+  check_object_exists<Point>(*$4, table_points);
+  check_object_exists<Point>(*$5, table_points);
+  check_object_exists<Point>(*$6, table_points);
+
+  line_in_plane(*table_points[*$2], *table_points[*$3], *table_points[*$4], *table_points[*$5],
+                *table_points[*$6], helper_polinoms_set);
+}
+
+| POINT_ON_SPHERE name_token name_token {
+  check_object_exists<Point>(*$2, table_points);
+  check_object_exists<Sphere>(*$3, table_spheres);
+
+  point_on_sphere(*table_points[*$2], *table_spheres[*$3], helper_polinoms_set);
+}
+
+| LINE_PLANE_INTERSECTION name_token name_token name_token
+  {
+    check_object_exists<Point>(*$2, table_points);
+    check_object_exists<Line>(*$3, table_lines);
+    check_object_exists<Plane>(*$4, table_planes);
+
+    line_plane_intersection(*table_points[*$2], *table_lines[*$3], *table_planes[*$4], helper_polinoms_set);
+  } 
+
+| LINE_PLANE_INTERSECTION name_token name_token name_token name_token
+  {
+    check_object_exists<Point>(*$2, table_points);
+    check_object_exists<Point>(*$3, table_points);
+    check_object_exists<Point>(*$4, table_points);
+    check_object_exists<Plane>(*$5, table_planes);
+
+    line_plane_intersection(*table_points[*$2], *table_points[*$3], *table_points[*$4], *table_planes[*$5], helper_polinoms_set);
+  } 
+
+| LINE_PLANE_INTERSECTION name_token name_token name_token name_token name_token
+  {
+    check_object_exists<Point>(*$2, table_points);
+    check_object_exists<Line>(*$3, table_lines);
+    check_object_exists<Point>(*$4, table_points);
+    check_object_exists<Point>(*$5, table_points);
+    check_object_exists<Point>(*$6, table_points);    
+
+
+    line_plane_intersection(*table_points[*$2], *table_lines[*$3], *table_points[*$4], *table_points[*$5], 
+            *table_points[*$6], helper_polinoms_set);
+  }       
+
+| LINE_PLANE_INTERSECTION name_token name_token name_token name_token name_token name_token
+  {
+    check_object_exists<Point>(*$2, table_points);
+    check_object_exists<Point>(*$3, table_points);
+    check_object_exists<Point>(*$4, table_points);
+    check_object_exists<Point>(*$5, table_points);
+    check_object_exists<Point>(*$6, table_points);    
+    check_object_exists<Point>(*$7, table_points);
+
+    line_plane_intersection(*table_points[*$2], *table_points[*$3], *table_points[*$4], *table_points[*$5], 
+            *table_points[*$6], *table_points[*$7], helper_polinoms_set);
+  }      
+
+| EQUAL_ANGLES name_token name_token name_token name_token name_token name_token
+  {
+    check_object_exists<Point>(*$2, table_points);
+    check_object_exists<Point>(*$3, table_points);
+    check_object_exists<Point>(*$4, table_points);
+    check_object_exists<Point>(*$5, table_points);
+    check_object_exists<Point>(*$6, table_points);    
+    check_object_exists<Point>(*$7, table_points);
+
+    equal_angles(*table_points[*$2], *table_points[*$3], *table_points[*$4], *table_points[*$5], 
+            *table_points[*$6], *table_points[*$7], helper_polinoms_set, variables, construction_polinoms);
+  }   
+
+| ANGLE name_token name_token name_token '=' ANGLE name_token name_token name_token
+  {
+    check_object_exists<Point>(*$2, table_points);
+    check_object_exists<Point>(*$3, table_points);
+    check_object_exists<Point>(*$4, table_points);
+    check_object_exists<Point>(*$7, table_points);
+    check_object_exists<Point>(*$8, table_points);    
+    check_object_exists<Point>(*$9, table_points);
+
+    equal_angles(*table_points[*$2], *table_points[*$3], *table_points[*$4], *table_points[*$7], 
+            *table_points[*$8], *table_points[*$9], helper_polinoms_set, variables, construction_polinoms);
+  }
+
+| EQUAL_NUMBERS name_token name_token 
+  {
+    check_object_exists<Number>(*$2, table_numbers);
+    check_object_exists<Number>(*$3, table_numbers);
+
+    equal_numbers(*table_numbers[*$2], *table_numbers[*$3], helper_polinoms_set);
+  }
+
+| COLLINEAR name_token name_token name_token
+  {
+    check_object_exists<Point>(*$2, table_points);
+    check_object_exists<Point>(*$3, table_points);
+    check_object_exists<Point>(*$4, table_points);
+
+    collinear(*table_points[*$2], *table_points[*$3], *table_points[*$4], helper_polinoms_set);
+  }
+;
+
+%%
+
+/* Program comand line
+   ./a.out -ndg input_file1 input_file2 input_file3...
+   ndg can be omitted
+   ndg suggest to look for ndg condtions
+*/
+int main(int argc, char** argv) {
+
+  if (argc <= 1) {
+    yyerror("Please provide input file.");
+  }
+
+  yydebug = 0;
+
+  bool ndg = false;
+  int i = 1;
+  if (strcmp(argv[1], "-ndg") == 0) {
+    ndg = true;
+    i = 2;
+  }
+
+  for(; i<argc; i++) {
+    yyin = fopen(argv[i], "r");
+
+    yyparse();
+
+    //std::cout << "solids_exists = " << solids_exists << std::endl;
+    simplify_polynomials(table_points, table_lines, solids_exists);
+    //std::cout << "Zavrsio simplifikaciju\n";
+
+    print_wolfram(i, construction_polinoms, statement_polinoms, variables, ndg);
+    print_latex(i, construction_polinoms, statement_polinoms, ndg, ndg_polinoms);
+
+    statement_polinoms.clear();
+    construction_polinoms.clear();
+    table_points.clear();
+    table_lines.clear();
+    variables.clear();
+  }
+  
+  return EXIT_SUCCESS;
+}

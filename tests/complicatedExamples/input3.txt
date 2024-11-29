@@ -1,0 +1,22 @@
+% radi, bez NDG
+% Vreme dokazivanja: 740.655ms
+
+A B C D E F G H = make_cube
+
+A1 = make_midpoint A C
+B1 = make_midpoint A F
+C1 = make_midpoint A H
+
+pi = make_plane A1 B1 C1
+
+l = make_line A G
+
+prove {
+    orthogonal_line_plane l pi
+}
+
+T = make_line_plane_intersection l pi
+
+prove {
+    segments_in_ratio A T A G 1 3
+}
