@@ -539,7 +539,7 @@ PointConstruction: name_token '=' MAKE_POINT
 
     $$ = new Point(*$1, variables);
     insert_object(*$1, $$, table_points);
-    make_foot_on_plane(*$$, *table_points[*$4], *table_planes[*$5], construction_polinoms);
+    make_foot_on_plane(*$$, *table_points[*$4], *table_planes[*$5], variables, construction_polinoms);
     
     //ndgConditons -- plane must be well defined
     insert_ndg_plane_vector_not_zero(*table_planes[*$5], ndg_polinoms);
@@ -555,7 +555,7 @@ PointConstruction: name_token '=' MAKE_POINT
 
     $$ = new Point(*$1, variables);
     insert_object(*$1, $$, table_points);
-    make_point_projection(*$$, *table_points[*$4], *table_planes[*$5], variables, construction_polinoms);
+    make_foot_on_plane(*$$, *table_points[*$4], *table_planes[*$5], variables, construction_polinoms);
 
     //ndgConditons -- plane must be well defined
     insert_ndg_plane_vector_not_zero(*table_planes[*$5], ndg_polinoms);

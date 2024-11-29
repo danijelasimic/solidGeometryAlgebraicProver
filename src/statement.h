@@ -18,7 +18,8 @@ void midpoint(Point& M, Point& A, Point& B, std::vector<Polinom>& statement_poli
 void point_segment_ratio(Point& M, Point& A, Point& B, int m, int n, std::vector<Polinom>& statement_polinoms);
 void point_segment_ratio(Point& M, Point& A, Point& B, Number& m, Number& n, std::vector<Polinom>& polinoms);
 
-void make_foot_on_plane(Point& D, Point& A, Plane& pi, std::vector<Polinom>& polinoms);
+void make_foot_on_plane(Point& D, Point& A, Plane& pi, std::vector<std::shared_ptr<Variable>>& variables, std::vector<Polinom>& polinoms);
+//the same thing, but works much worse
 void make_point_projection(Point& D, Point& A, Plane& pi, std::vector<std::shared_ptr<Variable>>& variables, std::vector<Polinom>& polinoms);
 
 void congruent(Point& A, Point& B, Point& C, Point& D, std::vector<Polinom>& statement_polinoms,

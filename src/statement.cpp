@@ -774,13 +774,16 @@ void addition(Number& n1, Number& n2, Number& n3, std::vector<Polinom>& polinoms
 	polinoms.push_back(p);
 }
 
-void make_foot_on_plane(Point& D, Point& A, Plane& pi, std::vector<Polinom>& polinoms)
+void make_foot_on_plane(Point& D, Point& A, Plane& pi, std::vector<std::shared_ptr<Variable>>& variables, std::vector<Polinom>& polinoms)
 {
 	point_in_plane(D, pi, polinoms);
 
-	Polinom p1 = (Polinom)A.x() - D.x() - pi.x_vec();
-	Polinom p2 = (Polinom)A.y() - D.y() - pi.y_vec();
-	Polinom p3 = (Polinom)A.z() - D.z() - pi.z_vec();
+	auto k = std::make_shared<Variable>();
+	variables.insert(variables.end(), k);
+
+	Polinom p1 = (Polinom)A.x() - D.x() - (Polinom)k*pi.x_vec();
+	Polinom p2 = (Polinom)A.y() - D.y() - (Polinom)k*pi.y_vec();
+	Polinom p3 = (Polinom)A.z() - D.z() - (Polinom)k*pi.z_vec();
 
 	polinoms.insert(polinoms.end(), {p1, p2, p3});
 }
