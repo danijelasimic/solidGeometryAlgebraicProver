@@ -1170,6 +1170,9 @@ NumberConstruction: name_token '=' SQUARE_DISTANCE name_token name_token {
   r->make_distance_line(*table_points[*$4], *table_points[*$5], *table_points[*$6], construction_polinoms, variables);
   insert_object(*$1, r, table_numbers);
 
+  insert_ndg_point_line_distance_not_zero(*r, *table_points[*$4], *table_points[*$5], 
+                                               *table_points[*$6], ndg_polinoms);
+
   delete $1;
   delete $4;
   delete $5;
@@ -1376,6 +1379,8 @@ GeomStatement: POINT_ON_LINE name_token name_token {
   check_object_exists<Line>(*$3, table_lines);
 
   parallel_lines(*table_lines[*$2], *table_lines[*$3], helper_polinoms_set);
+
+  insert_ndg_lines_with_same_vector_not_equal(*table_lines[*$2], *table_lines[*$3], ndg_polinoms);
 }
 
 | PARALLEL_LINES name_token name_token name_token name_token {
@@ -1386,6 +1391,8 @@ GeomStatement: POINT_ON_LINE name_token name_token {
 
   parallel_lines(*table_points[*$2], *table_points[*$3], *table_points[*$4], *table_points[*$5],
                     helper_polinoms_set);
+
+  insert_ndg_lines_with_same_vector_not_equal(*table_points[*$2], *table_points[*$3], *table_points[*$4], *table_points[*$5], ndg_polinoms);  
 }
 
 | POINT_IN_PLANE name_token name_token name_token name_token {

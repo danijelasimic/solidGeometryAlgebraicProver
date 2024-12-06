@@ -785,7 +785,15 @@ void make_foot_on_plane(Point& D, Point& A, Plane& pi, std::vector<std::shared_p
 	Polinom p2 = (Polinom)A.y() - D.y() - (Polinom)k*pi.y_vec();
 	Polinom p3 = (Polinom)A.z() - D.z() - (Polinom)k*pi.z_vec();
 
-	polinoms.insert(polinoms.end(), {p1, p2, p3});
+	auto square = std::make_shared<Variable>();
+	variables.insert(variables.end(), square);
+
+	Polinom p5 = (Polinom)square - (Polinom)A.x()*A.x() + (Polinom)A.y()*A.y() + (Polinom)A.z()*A.z();
+
+	Polinom p4 = (Polinom)k*square - (Polinom)pi.x_vec()*A.x() - (Polinom)pi.y_vec()*A.y() 
+				 - (Polinom)pi.z_vec()*A.z() - pi.d_vec();
+
+	polinoms.insert(polinoms.end(), {p1, p2, p3, p4, square});
 }
 
 void make_point_projection(Point& AProject, Point& A, Plane& pi, std::vector<std::shared_ptr<Variable>>& variables, std::vector<Polinom>& polinoms)

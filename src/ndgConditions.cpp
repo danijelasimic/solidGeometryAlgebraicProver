@@ -85,8 +85,8 @@ void insert_ndg_lines_not_parallel(Point& A, Point& B, Point& C, Point& D, std::
 	Polinom vec_cdy = Polinom{Term{1, D.y()}, Term{-1, C.y()}};
 	Polinom vec_cdz = Polinom{Term{1, D.z()}, Term{-1, C.z()}};
 
-    std::string text = "Line one, determined with points " + A.name() + " and " + B.name() + ", " +
-                       "is not paralle with line two, detemined with points " + C.name() + 
+    std::string text = "Line one, determined by points " + A.name() + " and " + B.name() + ", " +
+                       "is not paralle with line two, detemined by points " + C.name() + 
                        " and " + D.name() + ".";
     std::vector<Polinom> rez = vector_product_of_vectors(vec_abx, vec_aby, vec_abz,
 									vec_cdx, vec_cdy, vec_cdz);
@@ -108,8 +108,8 @@ void insert_ndg_lines_not_skew(Point& A, Point& B, Point& C, Point& D, std::vect
 	Polinom vec_cdy = Polinom{Term{1, D.y()}, Term{-1, C.y()}};
 	Polinom vec_cdz = Polinom{Term{1, D.z()}, Term{-1, C.z()}};
 
-    std::string text = "Line one, determined with points " + A.name() + " and " + B.name() + ", " +
-                       "is not skew with line two, detemined with points " + C.name() + 
+    std::string text = "Line one, determined by points " + A.name() + " and " + B.name() + ", " +
+                       "is not skew with line two, detemined by points " + C.name() + 
                        " and " + D.name() + ".";
 
 	// mix product of AC AB CD
@@ -170,7 +170,7 @@ void insert_ndg_plane_and_line_not_parallel(Line& l, Point& A, Point& B, Point& 
     Polinom poly = rez[0]*l.x_vec() + rez[1]*l.y_vec() + rez[2]*l.z_vec();
 	
     ndg_polinoms.push_back(NDGCondition{
-        "Line " + l.name() + " is not parallel with plane that is detemined with points " +
+        "Line " + l.name() + " is not parallel with plane that is detemined by points " +
         A.name() + ", " + B.name() + " and " + C.name() + ".", 
         poly
     });
@@ -225,7 +225,113 @@ void insert_ndg_point_not_on_line(Point& A, Line& l, std::vector<NDGCondition>& 
 	ndg_polinoms.push_back(NDGCondition{
         "Point " + A.name() + 
         " is not  on the line " +
-        l.name() + ".", 
+        l.name() + ". If at least one polynomial is non-zero, the condition holds true.", 
         poly
     });
 }
+
+void insert_ndg_lines_with_same_vector_not_equal(Line& l1, Line& l2, std::vector<NDGCondition>& ndg_polinoms)
+{
+	std::vector<Polinom> poly;
+
+	Polinom p1{Term{1, {l2.x_p(), l1.y_vec()}}, 
+	           Term{-1, {l1.x_p(), l1.y_vec()}},
+	           Term{-1, {l2.y_p(), l1.x_vec()}},
+	           Term{1, {l1.y_p(), l1.x_vec()}}};
+	poly.push_back(p1);
+
+	Polinom p2{Term{1, {l2.x_p(), l1.z_vec()}}, Term{-1, {l1.x_p(), l1.z_vec()}},
+			   Term{-1, {l2.z_p(), l1.x_vec()}}, Term{1, {l1.z_p(), l1.x_vec()}}};
+	poly.push_back(p2);
+
+	Polinom p3{Term{1, {l2.y_p(), l1.z_vec()}}, Term{-1, {l1.y_p(), l1.z_vec()}},
+				Term{-1, {l2.z_p(), l1.y_vec()}}, Term{1, {l1.z_p(), l1.y_vec()}}};
+	poly.push_back(p3);
+
+	Polinom p4{Term{1, {l1.x_p(), l2.y_vec()}}, 
+	           Term{-1, {l2.x_p(), l2.y_vec()}},
+	           Term{-1, {l1.y_p(), l2.x_vec()}},
+	           Term{1, {l2.y_p(), l2.x_vec()}}};
+	poly.push_back(p4);
+
+	Polinom p5{Term{1, {l1.x_p(), l2.z_vec()}}, Term{-1, {l2.x_p(), l2.z_vec()}},
+			   Term{-1, {l1.z_p(), l2.x_vec()}}, Term{1, {l2.z_p(), l2.x_vec()}}};
+	poly.push_back(p5);
+
+	Polinom p6{Term{1, {l1.y_p(), l2.z_vec()}}, Term{-1, {l2.y_p(), l2.z_vec()}},
+				Term{-1, {l1.z_p(), l2.y_vec()}}, Term{1, {l2.z_p(), l2.y_vec()}}};
+	poly.push_back(p6);
+
+	ndg_polinoms.push_back(NDGCondition{
+        "Line " + l1.name() + " and line " + l2.name() + 
+		" have parallel direction vectors. " + 
+		"Line " + l1.name() + 
+        " does not coincide with the line " +
+        l2.name() + ". If at least one polynomial is non-zero, the condition holds true.", 
+        poly
+    });
+}
+
+//helper function for insert_ndg_lines_with_same_vector_not_equal
+std::vector<Polinom> point_not_on_line(Point& A, Polinom& x_vec, Polinom& y_vec, Polinom& z_vec, Point linePoint)
+{
+	std::vector<Polinom> poly;
+
+	Polinom p1 = A.x()*y_vec - linePoint.x()*y_vec - A.y()*x_vec + linePoint.y()*x_vec;
+	Polinom p2 = A.x()*z_vec - linePoint.x()*z_vec - A.z()*x_vec + linePoint.z()*x_vec;
+	Polinom p3 = A.y()*z_vec - linePoint.y()*z_vec - A.z()*y_vec + linePoint.z()*y_vec; 
+	
+	poly.insert(poly.end(), {p1, p2, p3});
+
+	return poly;
+}
+
+void insert_ndg_lines_with_same_vector_not_equal(Point& A, Point& B, Point& C, Point& D, std::vector<NDGCondition>& ndg_polinoms)
+{
+	std::vector<Polinom> poly;
+
+	//Make vector for line AB
+	Polinom p1{Term{-1, A.x()}, Term{1, B.x()}};
+	Polinom p2{Term{-1, A.y()}, Term{1, B.y()}};
+	Polinom p3{Term{-1, A.z()}, Term{1, B.z()}};	
+
+	std::vector<Polinom> rez1 = point_not_on_line(C, p1, p2, p3, A);
+	poly.insert(poly.end(), rez1.begin(), rez1.end());
+
+	std::vector<Polinom> rez2 = point_not_on_line(D, p1, p2, p3, A);
+	poly.insert(poly.end(), rez2.begin(), rez2.end());
+
+	//Make vector for line CD
+	Polinom p4{Term{-1, C.x()}, Term{1, D.x()}};
+	Polinom p5{Term{-1, C.y()}, Term{1, D.y()}};
+	Polinom p6{Term{-1, C.z()}, Term{1, D.z()}};
+
+	std::vector<Polinom> rez3 = point_not_on_line(A, p4, p5, p6, C);
+	poly.insert(poly.end(), rez3.begin(), rez3.end());
+
+	std::vector<Polinom> rez4 = point_not_on_line(B, p4, p5, p6, C);
+	poly.insert(poly.end(), rez4.begin(), rez4.end());
+
+	ndg_polinoms.push_back(NDGCondition{
+		"Let l1 be line determined by points " + A.name() + " and " + B.name() + "." +
+		" Let l2 be line determined by points " + C.name() + " and " + D.name() + "." +
+        " Line l1 and line l2 have parallel direction vectors. Line l1 does not coincide with the line " 
+		"l2. If at least one polynomial is non-zero, the condition holds true.", 
+        poly
+    });
+}
+
+void insert_ndg_point_line_distance_not_zero(Number& n, Point& M, Point& A, Point& B, std::vector<NDGCondition>& ndg_polinoms)
+{
+	std::vector<Polinom> poly;
+
+	poly.push_back({Term{1, n.variable()}});
+
+	ndg_polinoms.push_back(NDGCondition{
+		"Distance between point " + M.name() + " and "
+		"line determined by points " + A.name() + " and " +
+		B.name() + " is not equal zero. Or, M does not belong to the line "
+		"determined by " + A.name() + " and " + B.name(), 
+        poly
+    });
+}	
